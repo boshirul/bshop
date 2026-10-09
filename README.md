@@ -1,4 +1,4 @@
-# KhanShop Retail Management System
+# BShop Retail Management System
 
 KhanShop is a web-based retail inventory, POS, warranty, and online-order
 management system. The implementation follows the requirements in
