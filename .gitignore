@@ -1,0 +1,29 @@
+# Build output
+bin/
+obj/
+
+# Frontend dependencies and output
+node_modules/
+dist/
+.angular/
+
+# IDE and user settings
+.vs/
+.vscode/
+*.user
+*.suo
+
+# Local configuration and secrets
+appsettings.Local.json
+.keys/
+.env
+.env.*
+!.env.example
+
+# Test output
+TestResults/
+coverage/
+
+# OS files
+.DS_Store
+Thumbs.db

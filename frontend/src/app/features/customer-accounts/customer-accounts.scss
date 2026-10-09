@@ -1,0 +1,17 @@
+@use '../sales-pos/sales.scss';
+
+.filters { align-items: center; display: flex; flex-wrap: wrap; gap: .75rem; margin-block-end: 1rem; }
+.filters mat-form-field { min-width: min(100%, 18rem); }
+.section-title { align-items: center; display: flex; justify-content: space-between; margin-block: 1.25rem .75rem; }
+.section-title h2 { margin: 0; }
+.aging-grid { display: grid; gap: .75rem; grid-template-columns: repeat(6, minmax(0, 1fr)); margin-block-end: 1rem; }
+.aging-grid .summary-box:last-child { background: #eaf2ff; }
+.allocation-input { max-width: 9rem; }
+.print-only { display: none; }
+@media (width <= 900px) { .aging-grid { grid-template-columns: repeat(3, 1fr); } }
+@media print {
+  .app-toolbar, .app-sidenav, .no-print, button, a[matButton] { display: none !important; }
+  .page-content { padding: 0 !important; }
+  .print-only { display: block; }
+  mat-card { border: 0 !important; box-shadow: none !important; }
+}

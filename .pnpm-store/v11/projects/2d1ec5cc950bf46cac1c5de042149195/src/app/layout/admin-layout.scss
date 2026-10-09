@@ -1,0 +1,60 @@
+:host {
+  display: block;
+  min-height: 100vh;
+}
+
+.app-toolbar {
+  position: sticky;
+  top: 0;
+  z-index: 10;
+  background: #123b5d;
+  color: #fff;
+}
+
+.brand {
+  color: inherit;
+  font-size: 1.2rem;
+  font-weight: 700;
+  margin-inline-start: 0.75rem;
+  text-decoration: none;
+}
+
+.toolbar-spacer {
+  flex: 1 1 auto;
+}
+
+.user-name {
+  font-size: 0.85rem;
+  margin-inline-end: 0.75rem;
+}
+
+.app-container {
+  min-height: calc(100vh - 64px);
+}
+
+.app-sidenav {
+  width: 15rem;
+  border-radius: 0;
+}
+
+.active-link {
+  background: #dbeafe;
+  color: #123b5d;
+  font-weight: 600;
+}
+
+.page-content {
+  margin-inline: auto;
+  max-width: 90rem;
+  padding: 1.5rem;
+}
+
+@media (width <= 700px) {
+  .user-name {
+    display: none;
+  }
+
+  .page-content {
+    padding: 1rem;
+  }
+}

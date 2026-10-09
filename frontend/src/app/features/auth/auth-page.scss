@@ -1,0 +1,114 @@
+.auth-page {
+  align-items: center;
+  background:
+    radial-gradient(circle at 8% 10%, rgb(8 124 255 / 22%), transparent 30rem),
+    radial-gradient(circle at 72% 88%, rgb(59 216 255 / 10%), transparent 28rem),
+    var(--bshop-color-bg);
+  display: grid;
+  gap: clamp(2rem, 7vw, 9rem);
+  grid-template-columns: minmax(0, 1fr) minmax(22rem, 31rem);
+  min-height: 100vh;
+  overflow: hidden;
+  padding: clamp(1.25rem, 5vw, 4.5rem);
+}
+
+.auth-page.single-card {
+  background: var(--bshop-color-bg);
+  grid-template-columns: minmax(20rem, 30rem);
+  justify-content: center;
+}
+
+.brand-panel {
+  align-self: stretch;
+  color: var(--bshop-color-text);
+  display: flex;
+  flex-direction: column;
+  max-width: 42rem;
+  min-height: min(50rem, calc(100vh - 4rem));
+  padding: clamp(.5rem, 2vw, 1.25rem) 0;
+  position: relative;
+}
+
+.brand-wordmark,
+.login-wordmark {
+  align-items: center;
+  color: var(--bshop-color-text);
+  display: inline-flex;
+  font-size: 1.55rem;
+  font-weight: 800;
+  gap: var(--bshop-space-2);
+  letter-spacing: -.055em;
+}
+
+.brand-mark {
+  align-items: center;
+  background: linear-gradient(145deg, color-mix(in srgb, var(--bshop-color-primary), white 32%), var(--bshop-color-primary) 48%, color-mix(in srgb, var(--bshop-color-primary), var(--bshop-color-bg) 52%));
+  border: 1px solid color-mix(in srgb, var(--bshop-color-text), transparent 70%);
+  border-radius: .6rem;
+  box-shadow: 0 .5rem 1.4rem rgb(8 124 255 / 32%);
+  color: var(--bshop-color-text);
+  display: inline-flex;
+  font-size: 1.35em;
+  font-weight: 900;
+  height: 1.35em;
+  justify-content: center;
+  letter-spacing: -.1em;
+  width: 1.35em;
+}
+
+.brand-content { margin-block: auto; padding-block: clamp(3rem, 8vh, 6rem) 2rem; position: relative; z-index: 1; }
+
+.brand-panel h1 {
+  font-size: clamp(3rem, 6vw, 5.85rem);
+  letter-spacing: -.065em;
+  line-height: .95;
+  margin: var(--bshop-space-4) 0 var(--bshop-space-6);
+}
+
+.brand-panel h1 span {
+  background: linear-gradient(90deg, color-mix(in srgb, var(--bshop-color-primary), white 28%), color-mix(in srgb, var(--bshop-color-primary), var(--bshop-color-text) 48%) 75%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+
+.brand-copy { color: var(--bshop-color-text-muted); font-size: clamp(1rem, 1.4vw, 1.1rem); line-height: 1.75; margin: 0; max-width: 36rem; }
+.eyebrow { color: color-mix(in srgb, var(--bshop-color-primary), var(--bshop-color-text) 40%); font-size: .75rem; font-weight: 700; letter-spacing: .16em; margin: 0; }
+
+.feature-list { display: grid; gap: var(--bshop-space-3) var(--bshop-space-6); grid-template-columns: repeat(2, minmax(0, 1fr)); list-style: none; margin: var(--bshop-space-8) 0 0; max-width: 35rem; padding: 0; }
+.feature-list li { align-items: center; color: var(--bshop-color-text-muted); display: flex; font-size: .9rem; gap: var(--bshop-space-3); }
+.feature-list span { align-items: center; background: color-mix(in srgb, var(--bshop-color-primary), transparent 86%); border: 1px solid color-mix(in srgb, var(--bshop-color-primary), transparent 72%); border-radius: var(--bshop-radius-sm); color: color-mix(in srgb, var(--bshop-color-primary), var(--bshop-color-text) 30%); display: inline-flex; font-size: 1rem; height: 2.25rem; justify-content: center; width: 2.25rem; }
+
+
+.login-card { background: linear-gradient(160deg, var(--bshop-color-surface-raised), var(--bshop-color-sidebar)); border: 1px solid var(--bshop-color-border); border-radius: clamp(1rem, 2vw, 1.5rem); box-shadow: var(--bshop-shadow-md), 0 0 0 1px color-mix(in srgb, var(--bshop-color-primary), transparent 92%); color: var(--bshop-color-text); padding: clamp(1rem, 2vw, 1.65rem); position: relative; width: 100%; }
+.login-card::before { background: linear-gradient(90deg, transparent, color-mix(in srgb, var(--bshop-color-primary), var(--bshop-color-text) 38%), transparent); content: ""; height: 1px; left: 17%; position: absolute; right: 17%; top: -1px; }
+.login-wordmark { color: var(--bshop-color-text); font-size: 1.45rem; margin: .2rem auto 1.55rem; }
+mat-card-title { color: var(--bshop-color-text); font-size: clamp(1.55rem, 2vw, 1.85rem); font-weight: 750; letter-spacing: -.035em; margin-block-end: var(--bshop-space-2); text-align: center; }
+mat-card-subtitle { color: var(--bshop-color-text-muted); text-align: center; }
+form { display: grid; gap: var(--bshop-space-4); margin-block-start: var(--bshop-space-8); }
+mat-form-field { width: 100%; }
+.login-card :is(.mat-mdc-text-field-wrapper, .mdc-text-field) { border-radius: var(--bshop-radius-md); }
+.login-card :is(.mat-mdc-form-field-focus-overlay, .mdc-text-field--filled) { background: color-mix(in srgb, var(--bshop-color-bg), transparent 48%); }
+
+.password-toggle { align-items: center; background: transparent; border: 0; border-radius: var(--bshop-radius-sm); color: var(--bshop-color-text-muted); cursor: pointer; display: inline-flex; height: 2rem; justify-content: center; padding: .4rem; transition: color var(--bshop-transition-fast), background var(--bshop-transition-fast); width: 2rem; }
+.password-toggle:hover { background: color-mix(in srgb, var(--bshop-color-primary), transparent 86%); color: var(--bshop-color-text); }
+.password-toggle svg { fill: none; height: 1.25rem; stroke: currentColor; stroke-linecap: round; stroke-linejoin: round; stroke-width: 1.8; width: 1.25rem; }
+.sign-in-button { align-items: center; background: linear-gradient(100deg, var(--bshop-color-primary), color-mix(in srgb, var(--bshop-color-primary), white 32%)) !important; border: 1px solid color-mix(in srgb, var(--bshop-color-primary), var(--bshop-color-text) 45%); border-radius: var(--bshop-radius-md); box-shadow: 0 .75rem 1.6rem color-mix(in srgb, var(--bshop-color-primary), transparent 72%); color: var(--bshop-color-text) !important; display: inline-flex; font-weight: 700; gap: var(--bshop-space-2); justify-content: center; letter-spacing: -.01em; min-height: 3rem; transition: box-shadow var(--bshop-transition-fast), transform var(--bshop-transition-fast), filter var(--bshop-transition-fast); }
+.sign-in-button:hover:not(:disabled) { box-shadow: 0 1rem 2rem color-mix(in srgb, var(--bshop-color-primary), transparent 62%); filter: brightness(1.07); transform: translateY(-1px); }
+.sign-in-button:disabled { box-shadow: none; cursor: not-allowed; opacity: .55; }
+.button-spinner { animation: button-spin 750ms linear infinite; border: 2px solid color-mix(in srgb, var(--bshop-color-text), transparent 55%); border-radius: 50%; border-top-color: var(--bshop-color-text); height: 1rem; width: 1rem; }
+.forgot-link { color: color-mix(in srgb, var(--bshop-color-primary), var(--bshop-color-text) 42%); font-size: .9rem; justify-self: center; text-decoration: none; }.forgot-link:hover { text-decoration: underline; }
+.error-message, .success-message { border-radius: var(--bshop-radius-md); font-size: .9rem; line-height: 1.5; padding: .75rem; }
+.error-message { background: var(--bshop-color-danger-bg); border: 1px solid color-mix(in srgb, var(--bshop-color-danger), transparent 65%); color: color-mix(in srgb, var(--bshop-color-danger), var(--bshop-color-text) 70%); }.success-message { background: var(--bshop-color-success-bg); border: 1px solid color-mix(in srgb, var(--bshop-color-success), transparent 65%); color: color-mix(in srgb, var(--bshop-color-success), var(--bshop-color-text) 70%); }
+@keyframes button-spin { to { transform: rotate(360deg); } }
+
+@media (width <= 900px) {
+  .auth-page { grid-template-columns: 1fr; padding: clamp(1rem, 5vw, 2.5rem); }
+  .brand-panel { min-height: auto; padding-bottom: 0; }.brand-content { margin: 0; padding-block: clamp(2.5rem, 7vw, 4rem) 3rem; }
+  .login-card { margin-inline: auto; max-width: 30rem; width: 100%; }
+}
+@media (width <= 560px) {
+  .auth-page { align-items: start; gap: 0; padding: 1rem; }.brand-panel { min-height: 12rem; }.brand-content { padding-block: 3rem 1.5rem; }
+  .brand-panel h1 { font-size: clamp(2.35rem, 13vw, 3.3rem); margin-block: var(--bshop-space-3) var(--bshop-space-4); }.brand-copy { font-size: .93rem; line-height: 1.55; }
+  .feature-list { display: none; }.login-card { border-radius: var(--bshop-radius-lg); padding: 1rem; }form { margin-block-start: var(--bshop-space-6); }
+}

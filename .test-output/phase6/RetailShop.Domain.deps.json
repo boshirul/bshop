@@ -1,0 +1,23 @@
+{
+  "runtimeTarget": {
+    "name": ".NETCoreApp,Version=v10.0",
+    "signature": ""
+  },
+  "compilationOptions": {},
+  "targets": {
+    ".NETCoreApp,Version=v10.0": {
+      "RetailShop.Domain/1.0.0": {
+        "runtime": {
+          "RetailShop.Domain.dll": {}
+        }
+      }
+    }
+  },
+  "libraries": {
+    "RetailShop.Domain/1.0.0": {
+      "type": "project",
+      "serviceable": false,
+      "sha512": ""
+    }
+  }
+}

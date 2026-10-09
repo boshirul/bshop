@@ -1,0 +1,106 @@
+.page-header {
+  align-items: end;
+  display: flex;
+  justify-content: space-between;
+  margin-block-end: 1.5rem;
+}
+
+.page-header h1 {
+  font-size: clamp(2rem, 4vw, 3rem);
+  letter-spacing: -0.04em;
+  margin: 0;
+}
+
+.page-header p:not(.eyebrow),
+.muted {
+  color: #5b6874;
+}
+
+.eyebrow {
+  color: #2563eb;
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.14em;
+}
+
+.toolbar-actions,
+.form-actions,
+.pagination {
+  align-items: center;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.table-wrap {
+  overflow-x: auto;
+}
+
+table {
+  width: 100%;
+}
+
+.code {
+  color: #52616d;
+  font-family: ui-monospace, Consolas, monospace;
+  font-size: 0.78rem;
+}
+
+.quantity {
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+}
+
+.status {
+  background: #def7ec;
+  border-radius: 999px;
+  color: #046c4e;
+  padding: 0.2rem 0.55rem;
+}
+
+.status.warning,
+.status.pending {
+  background: #fff3cd;
+  color: #7a4d00;
+}
+
+.status.rejected,
+.status.reversed {
+  background: #eceff1;
+  color: #5f6b75;
+}
+
+.error-message,
+.success-message {
+  border-radius: 0.5rem;
+  padding: 0.75rem;
+}
+
+.error-message {
+  background: #fde8e8;
+  color: #9b1c1c;
+}
+
+.success-message {
+  background: #def7ec;
+  color: #046c4e;
+}
+
+.empty-state {
+  color: #65727e;
+  padding: 2rem;
+  text-align: center;
+}
+
+.pagination {
+  justify-content: flex-end;
+  margin-block-start: 1rem;
+}
+
+@media (width <= 700px) {
+  .page-header {
+    align-items: start;
+    flex-direction: column;
+    gap: 1rem;
+  }
+}
