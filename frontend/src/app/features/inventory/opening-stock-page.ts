@@ -33,12 +33,12 @@ type OpeningLineForm = FormGroup<{
       <div>
         <p class="eyebrow">CONTROLLED STOCK ENTRY</p>
         <h1>Opening stock</h1>
-        <p>Establish initial quantities and weighted-average cost through the ledger.</p>
+        <p class="transaction-helper">Establish initial quantities and weighted-average cost through the ledger.</p>
       </div>
       <a matButton routerLink="/inventory">Back to inventory</a>
     </header>
 
-    <mat-card appearance="outlined">
+    <mat-card appearance="outlined" class="transaction-panel">
       <mat-card-content>
         @if (errorMessage()) {
           <p class="error-message">{{ errorMessage() }}</p>
@@ -60,7 +60,7 @@ type OpeningLineForm = FormGroup<{
 
           <div formArrayName="items" class="lines">
             @for (line of items.controls; track line; let index = $index) {
-              <div class="stock-line" [formGroupName]="index">
+              <div class="stock-line transaction-line" [formGroupName]="index">
                 <mat-form-field appearance="outline">
                   <mat-label>Product</mat-label>
                   <mat-select formControlName="productId">
@@ -91,8 +91,8 @@ type OpeningLineForm = FormGroup<{
             }
           </div>
 
-          <div class="form-actions">
-            <button matButton="filled" type="submit" [disabled]="form.invalid || saving()">
+          <div class="form-actions transaction-total-bar">
+            <button matButton="filled" class="transaction-primary" type="submit" [disabled]="form.invalid || saving()">
               Record opening stock
             </button>
           </div>
@@ -102,22 +102,22 @@ type OpeningLineForm = FormGroup<{
   `,
   styles: `
     @use './inventory.scss';
-    form { display: grid; gap: 1rem; }
+    form { display: grid; gap: var(--bshop-space-4); }
     mat-form-field { width: 100%; }
     .line-header { align-items: center; display: flex; justify-content: space-between; }
     .line-header h2 { margin: 0; }
-    .lines { display: grid; gap: .75rem; }
+    .lines { display: grid; gap: var(--bshop-space-3); }
     .stock-line {
       align-items: start;
-      background: #f8fafc;
-      border: 1px solid #e1e7ec;
-      border-radius: .75rem;
       display: grid;
-      gap: .75rem;
+      gap: var(--bshop-space-3);
       grid-template-columns: minmax(16rem, 2fr) 1fr 1fr auto;
-      padding: .75rem;
     }
-    @media (width <= 800px) { .stock-line { grid-template-columns: 1fr; } }
+    .form-actions { justify-content: flex-end; padding: var(--bshop-space-3); }
+    @media (width <= 800px) {
+      .stock-line { grid-template-columns: 1fr; }
+      .form-actions button { min-height: 2.75rem; width: 100%; }
+    }
   `
 })
 export class OpeningStockPage implements OnInit {

@@ -37,7 +37,7 @@ import {
       <div>
         <p class="eyebrow">APPROVAL WORKFLOW</p>
         <h1>Stock adjustments</h1>
-        <p>Corrections remain pending until an authorized review changes stock.</p>
+        <p class="transaction-helper">Corrections remain pending until an authorized review changes stock.</p>
       </div>
       <a matButton routerLink="/inventory">Back to inventory</a>
     </header>
@@ -50,7 +50,7 @@ import {
     }
 
     @if (canRequest()) {
-      <mat-card appearance="outlined" class="request-card">
+      <mat-card appearance="outlined" class="request-card transaction-panel">
         <mat-card-header><mat-card-title>Request an adjustment</mat-card-title></mat-card-header>
         <mat-card-content>
           <form [formGroup]="form" (ngSubmit)="create()">
@@ -94,7 +94,7 @@ import {
               <mat-label>Notes</mat-label>
               <textarea matInput rows="2" formControlName="notes"></textarea>
             </mat-form-field>
-            <button matButton="filled" type="submit" [disabled]="form.invalid">Submit request</button>
+            <button matButton="filled" class="transaction-primary" type="submit" [disabled]="form.invalid">Submit request</button>
           </form>
         </mat-card-content>
       </mat-card>
@@ -114,9 +114,9 @@ import {
 
     <div class="adjustment-list">
       @for (adjustment of adjustments(); track adjustment.id) {
-        <mat-card appearance="outlined">
+        <mat-card appearance="outlined" class="transaction-panel">
           <mat-card-content>
-            <div class="adjustment-header">
+            <div class="adjustment-header transaction-summary">
               <div>
                 <strong>{{ adjustment.adjustmentNumber }}</strong>
                 <div class="muted">{{ adjustment.requestedOn | date: 'medium' }}</div>
@@ -132,7 +132,7 @@ import {
             </div>
             <p>{{ adjustment.reason }}</p>
             @for (line of adjustment.items; track line.id) {
-              <div class="adjustment-line">
+              <div class="adjustment-line transaction-line">
                 <span>{{ line.productName }} <span class="code">{{ line.productCode }}</span></span>
                 <strong>{{ line.direction }} {{ line.quantity }} {{ line.unitSymbol }}</strong>
                 <span>{{ line.bucket }}</span>
@@ -144,7 +144,7 @@ import {
             @if (canApprove()) {
               <div class="form-actions">
                 @if (adjustment.status === 'Pending') {
-                  <button matButton="filled" type="button" (click)="approve(adjustment)">Approve</button>
+                  <button matButton="filled" class="transaction-primary" type="button" (click)="approve(adjustment)">Approve</button>
                   <button matButton type="button" (click)="reject(adjustment)">Reject</button>
                 }
                 @if (adjustment.status === 'Approved') {
@@ -167,19 +167,20 @@ import {
   `,
   styles: `
     @use './inventory.scss';
-    .request-card { margin-block-end: 1.25rem; }
-    form { display: grid; gap: .75rem; grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    .request-card { margin-block-end: var(--bshop-space-5); }
+    form { display: grid; gap: var(--bshop-space-3); grid-template-columns: repeat(2, minmax(0, 1fr)); }
     mat-form-field { width: 100%; }
     .span-2 { grid-column: 1 / -1; }
     .filter-row { display: flex; justify-content: flex-end; }
-    .adjustment-list { display: grid; gap: .75rem; }
+    .adjustment-list { display: grid; gap: var(--bshop-space-3); }
     .adjustment-header, .adjustment-line {
       align-items: center;
       display: flex;
-      gap: 1rem;
+      gap: var(--bshop-space-3);
       justify-content: space-between;
     }
-    .adjustment-line { border-block-start: 1px solid #e1e7ec; padding-block: .65rem; }
+    .adjustment-header { padding: var(--bshop-space-3); }
+    .adjustment-line { padding-block: var(--bshop-space-3); }
     @media (width <= 700px) {
       form { grid-template-columns: 1fr; }
       .span-2 { grid-column: auto; }

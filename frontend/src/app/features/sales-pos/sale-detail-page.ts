@@ -15,6 +15,7 @@ import { SaleDetail } from './sales.models';
   imports: [CurrencyPipe, DatePipe, RouterLink, MatButtonModule, MatCardModule, MatTableModule],
   template: `
     @if(sale();as invoice){
+      <div class="screen-invoice">
       <header class="page-header">
         <div><p class="eyebrow">SALES INVOICE</p><h1>{{invoice.invoiceNumber}}</h1>
           <p>{{invoice.customerName}} · {{invoice.saleDate|date:'mediumDate'}}</p>
@@ -64,15 +65,44 @@ import { SaleDetail } from './sales.models';
           <div class="total-row grand"><span>Grand total</span><strong>{{invoice.grandTotal|currency:'BDT':'symbol-narrow'}}</strong></div>
         </mat-card-content></mat-card>
       </div>
+      </div>
+
+      <section class="print-invoice" aria-hidden="true">
+        <header class="print-invoice__header">
+          <div><p class="print-invoice__brand">BShop</p><p class="print-invoice__copy">Customer copy</p></div>
+          <div class="print-invoice__meta"><strong>Sales invoice</strong><span>{{invoice.invoiceNumber}}</span><span>{{invoice.saleDate|date:'mediumDate'}}</span></div>
+        </header>
+
+        <section class="print-invoice__customer">
+          <span>Bill to</span><strong>{{invoice.customerName || 'Walk-in customer'}}</strong>
+          @if(invoice.customerPhone){<small>{{invoice.customerPhone}}</small>}
+        </section>
+
+        <table class="print-invoice__items">
+          <thead><tr><th>Product</th><th class="print-number">Qty.</th><th class="print-number">Unit price</th><th class="print-number">Discount</th><th class="print-number">Amount</th></tr></thead>
+          <tbody>@for(line of invoice.items;track line.id){
+            <tr><td><strong>{{line.productName}}</strong><small>{{line.productCode}}</small></td><td class="print-number">{{line.quantity}} {{line.unitSymbol}}</td><td class="print-number">{{line.unitPrice|currency:'BDT':'symbol-narrow'}}</td><td class="print-number">{{line.discountAmount|currency:'BDT':'symbol-narrow'}}</td><td class="print-number">{{line.lineTotal|currency:'BDT':'symbol-narrow'}}</td></tr>
+          }</tbody>
+        </table>
+
+        <section class="print-invoice__footer">
+          <div class="print-invoice__payments"><strong>Payments</strong>
+            @for(payment of invoice.payments;track payment.id){<div><span>{{payment.paymentMethodName}}</span><span>{{payment.amount|currency:'BDT':'symbol-narrow'}}</span></div>}
+            @empty{<span>No payment recorded</span>}
+          </div>
+          <dl class="print-invoice__totals"><div><dt>Subtotal</dt><dd>{{invoice.subtotal|currency:'BDT':'symbol-narrow'}}</dd></div><div><dt>Discount</dt><dd>{{invoice.discountAmount|currency:'BDT':'symbol-narrow'}}</dd></div><div><dt>VAT</dt><dd>{{invoice.vatAmount|currency:'BDT':'symbol-narrow'}}</dd></div><div class="print-invoice__grand"><dt>Grand total</dt><dd>{{invoice.grandTotal|currency:'BDT':'symbol-narrow'}}</dd></div><div><dt>Paid</dt><dd>{{invoice.paidAmount|currency:'BDT':'symbol-narrow'}}</dd></div><div><dt>Due</dt><dd>{{invoice.dueAmount|currency:'BDT':'symbol-narrow'}}</dd></div></dl>
+        </section>
+        @if(invoice.notes){<p class="print-invoice__notes"><strong>Notes:</strong> {{invoice.notes}}</p>}
+        <footer class="print-invoice__thank-you">Thank you for shopping with BShop.</footer>
+      </section>
     }
     @if(errorMessage()){<p class="error-message">{{errorMessage()}}</p>}
   `,
   styles: `
     @use './sales.scss';
     .section{margin-block:1rem}.two-columns{display:grid;gap:1rem;grid-template-columns:1fr 1fr}
-    mat-card-content{padding-block-start:.75rem}.activity,.total-row{align-items:center;border-block-start:1px solid #e1e7ec;display:flex;justify-content:space-between;padding:.75rem 0}
-    .activity div span{color:#65727e;display:block;font-size:.8rem}.grand{font-size:1.1rem}
-    @media print{.app-toolbar,.app-sidenav,.toolbar-actions{display:none!important}.page-content{padding:0!important}}
+    mat-card-content{padding-block-start:.75rem}.activity,.total-row{align-items:center;border-block-start:1px solid var(--bshop-color-border);display:flex;justify-content:space-between;padding:.75rem 0}
+    .activity div span{color:var(--bshop-color-text-muted);display:block;font-size:.8rem}.grand{font-size:1.1rem}
     @media(width <= 750px){.two-columns{grid-template-columns:1fr}}
   `
 })
@@ -92,7 +122,13 @@ export class SaleDetailPage implements OnInit {
       error: error => this.errorMessage.set(this.describe(error))
     });
   }
-  protected print(): void { window.print(); }
+  protected print(): void {
+    const originalTitle = document.title;
+    const invoiceNumber = this.sale()?.invoiceNumber;
+    document.title = invoiceNumber ? `BShop Invoice ${invoiceNumber}` : 'BShop Invoice';
+    window.addEventListener('afterprint', () => { document.title = originalTitle; }, { once: true });
+    window.print();
+  }
   protected cancel(): void {
     const current = this.sale();
     if (!current) return;

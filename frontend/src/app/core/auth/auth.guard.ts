@@ -27,3 +27,16 @@ export function permissionGuard(permission: string): CanMatchFn {
       : router.createUrlTree(['/dashboard']);
   };
 }
+
+export function permissionRedirectGuard(
+  permission: string,
+  redirectTo: string[]
+): CanMatchFn {
+  return () => {
+    const auth = inject(AuthService);
+    const router = inject(Router);
+    return auth.hasPermission(permission)
+      ? true
+      : router.createUrlTree(redirectTo);
+  };
+}

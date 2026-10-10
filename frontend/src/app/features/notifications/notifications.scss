@@ -86,6 +86,7 @@ th {
   padding: .75rem 1rem;
   border-radius: .75rem;
 }
+.eyebrow,.hint,.meta{color:var(--bshop-color-text-muted)}h1,h2{color:var(--bshop-color-text)}.message-card,.table-wrap,mat-card{background:var(--bshop-color-surface);border-color:var(--bshop-color-border)}.table-wrap{border-radius:var(--bshop-radius-lg)}table{color:var(--bshop-color-text)}th,td{border-color:var(--bshop-color-border-soft)}th{color:var(--bshop-color-text-muted)}.error-message{background:var(--bshop-color-danger-bg);color:var(--bshop-color-danger)}.success-message{background:var(--bshop-color-success-bg);color:var(--bshop-color-success)}
 
 .error-message {
   color: #991b1b;

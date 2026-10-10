@@ -1,0 +1,152 @@
+.page-header {
+  margin-block-end: var(--bshop-space-6);
+}
+
+.page-header h1 {
+  color: var(--bshop-color-text);
+  font-size: clamp(2rem, 4vw, 3rem);
+  letter-spacing: -.04em;
+  margin: 0;
+}
+
+.page-header p:not(.eyebrow) {
+  color: var(--bshop-color-text-muted);
+}
+
+.eyebrow {
+  color: var(--bshop-color-primary);
+  font-size: .72rem;
+  font-weight: 700;
+  letter-spacing: .14em;
+}
+
+.settings-panel {
+  background: var(--bshop-color-surface);
+  overflow: hidden;
+}
+
+.settings-form {
+  display: grid;
+  gap: var(--bshop-space-3);
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  padding: var(--bshop-space-6);
+}
+
+.settings-form h2 {
+  color: var(--bshop-color-text);
+  font-size: 1.05rem;
+  grid-column: 1 / -1;
+  margin: 0 0 var(--bshop-space-1);
+}
+
+mat-form-field {
+  width: 100%;
+}
+
+.span-2 {
+  grid-column: 1 / -1;
+}
+
+.checks {
+  align-items: center;
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--bshop-space-4);
+}
+
+.checks mat-checkbox,
+.settings-form > mat-checkbox {
+  color: var(--bshop-color-text);
+  padding-block: var(--bshop-space-2);
+}
+
+.settings-split,
+.payment-layout {
+  display: grid;
+  gap: var(--bshop-space-4);
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  padding: var(--bshop-space-6);
+}
+
+.settings-split .settings-form,
+.payment-layout .settings-form {
+  padding: var(--bshop-space-5);
+}
+
+.settings-section {
+  background: var(--bshop-color-sidebar);
+  border: 1px solid var(--bshop-color-border);
+  border-radius: var(--bshop-radius-lg);
+  box-shadow: var(--bshop-shadow-sm);
+}
+
+.payment-methods {
+  padding: var(--bshop-space-5);
+}
+
+.payment-methods h2 {
+  color: var(--bshop-color-text);
+  font-size: 1.05rem;
+  margin: 0 0 var(--bshop-space-4);
+}
+
+.payment-table-wrap {
+  overflow-x: auto;
+}
+
+.bshop-table {
+  min-width: 38rem;
+}
+
+.payment-status {
+  background: var(--bshop-color-success-bg);
+  border-radius: var(--bshop-radius-pill);
+  color: var(--bshop-color-success);
+  display: inline-block;
+  font-size: .78rem;
+  font-weight: 700;
+  padding: var(--bshop-space-1) var(--bshop-space-2);
+}
+
+.payment-status.is-inactive {
+  background: color-mix(in srgb, var(--bshop-color-text-muted), transparent 84%);
+  color: var(--bshop-color-text-muted);
+}
+
+.settings-form button[matButton="filled"] {
+  background: linear-gradient(100deg, var(--bshop-color-primary), color-mix(in srgb, var(--bshop-color-primary), var(--bshop-color-text) 28%));
+  color: var(--bshop-color-text);
+  min-height: 2.75rem;
+}
+
+.settings-form button[matButton="filled"]:not(:disabled):hover {
+  box-shadow: var(--bshop-shadow-glow);
+}
+
+.settings-form button:disabled {
+  opacity: .58;
+}
+
+@media (width <= 800px) {
+  .settings-form,
+  .settings-split,
+  .payment-layout {
+    grid-template-columns: 1fr;
+  }
+
+  .span-2,
+  .settings-form h2 {
+    grid-column: auto;
+  }
+
+  .settings-split,
+  .payment-layout,
+  .settings-form {
+    padding: var(--bshop-space-4);
+  }
+
+  .settings-split .settings-form,
+  .payment-layout .settings-form {
+    padding: var(--bshop-space-4);
+  }
+}

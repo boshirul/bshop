@@ -6,6 +6,7 @@
 }
 
 .page-header h1 {
+  color: var(--bshop-color-text);
   font-size: clamp(2rem, 4vw, 3rem);
   letter-spacing: -0.04em;
   margin: 0;
@@ -13,11 +14,11 @@
 
 .page-header p:not(.eyebrow),
 .muted {
-  color: #5b6874;
+  color: var(--bshop-color-text-muted);
 }
 
 .eyebrow {
-  color: #2563eb;
+  color: var(--bshop-color-primary);
   font-size: 0.72rem;
   font-weight: 700;
   letter-spacing: 0.14em;
@@ -33,15 +34,20 @@
 }
 
 .table-wrap {
+  background: var(--bshop-color-surface);
+  border: 1px solid var(--bshop-color-border);
+  border-radius: var(--bshop-radius-lg);
   overflow-x: auto;
 }
 
 table {
+  background: var(--bshop-color-surface);
+  color: var(--bshop-color-text);
   width: 100%;
 }
 
 .code {
-  color: #52616d;
+  color: var(--bshop-color-text-muted);
   font-family: ui-monospace, Consolas, monospace;
   font-size: 0.78rem;
 }
@@ -52,42 +58,44 @@ table {
 }
 
 .status {
-  background: #def7ec;
+  background: var(--bshop-color-success-bg);
   border-radius: 999px;
-  color: #046c4e;
+  color: var(--bshop-color-success);
   padding: 0.2rem 0.55rem;
 }
 
 .status.warning,
 .status.pending {
-  background: #fff3cd;
-  color: #7a4d00;
+  background: var(--bshop-color-warning-bg);
+  color: var(--bshop-color-warning);
 }
 
 .status.rejected,
 .status.reversed {
-  background: #eceff1;
-  color: #5f6b75;
+  background: color-mix(in srgb, var(--bshop-color-text-muted), transparent 85%);
+  color: var(--bshop-color-text-muted);
 }
 
 .error-message,
 .success-message {
-  border-radius: 0.5rem;
+  border-radius: var(--bshop-radius-md);
   padding: 0.75rem;
 }
 
 .error-message {
-  background: #fde8e8;
-  color: #9b1c1c;
+  background: var(--bshop-color-danger-bg);
+  border: 1px solid color-mix(in srgb, var(--bshop-color-danger), transparent 62%);
+  color: color-mix(in srgb, var(--bshop-color-danger), var(--bshop-color-text) 70%);
 }
 
 .success-message {
-  background: #def7ec;
-  color: #046c4e;
+  background: var(--bshop-color-success-bg);
+  border: 1px solid color-mix(in srgb, var(--bshop-color-success), transparent 62%);
+  color: var(--bshop-color-success);
 }
 
 .empty-state {
-  color: #65727e;
+  color: var(--bshop-color-text-muted);
   padding: 2rem;
   text-align: center;
 }
@@ -96,6 +104,9 @@ table {
   justify-content: flex-end;
   margin-block-start: 1rem;
 }
+
+table tr:hover { background: color-mix(in srgb, var(--bshop-color-primary), transparent 93%); }
+.toolbar-actions button[matButton="filled"], .form-actions button[matButton="filled"] { background: linear-gradient(100deg, var(--bshop-color-primary), color-mix(in srgb, var(--bshop-color-primary), white 28%)); color: var(--bshop-color-text); }
 
 @media (width <= 700px) {
   .page-header {

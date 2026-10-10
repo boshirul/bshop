@@ -42,7 +42,7 @@ type PaymentForm = FormGroup<{
       <div>
         <p class="eyebrow">POINT OF SALE</p>
         <h1>New sale</h1>
-        <p>Scan products, collect mixed payments, and confirm the invoice.</p>
+        <p class="transaction-helper">Scan products, collect mixed payments, and confirm the invoice.</p>
       </div>
       <div class="toolbar-actions">
         <a matButton routerLink="/sales-pos/history">Sales history</a>
@@ -52,7 +52,7 @@ type PaymentForm = FormGroup<{
     @if (errorMessage()) { <p class="error-message">{{ errorMessage() }}</p> }
 
     <form [formGroup]="form" (ngSubmit)="checkout()">
-      <mat-card appearance="outlined">
+      <mat-card appearance="outlined" class="transaction-panel">
         <mat-card-content class="sale-header">
           <mat-form-field appearance="outline">
             <mat-label>Customer (optional for paid sale)</mat-label>
@@ -74,7 +74,7 @@ type PaymentForm = FormGroup<{
         </mat-card-content>
       </mat-card>
 
-      <mat-card appearance="outlined">
+      <mat-card appearance="outlined" class="transaction-panel">
         <mat-card-header>
           <mat-card-title>Cart</mat-card-title><span class="spacer"></span>
           <div class="barcode-box">
@@ -86,7 +86,7 @@ type PaymentForm = FormGroup<{
         </mat-card-header>
         <mat-card-content formArrayName="items" class="lines">
           @for (line of items.controls; track line; let index = $index) {
-            <div class="sale-line" [formGroupName]="index">
+            <div class="sale-line transaction-line" [formGroupName]="index">
               <mat-form-field appearance="outline">
                 <mat-label>Product</mat-label>
                 <mat-select formControlName="productId" (selectionChange)="selectProduct(index)">
@@ -121,21 +121,21 @@ type PaymentForm = FormGroup<{
                     placeholder="One serial per line"></textarea>
                 </mat-form-field>
               }
-              <div class="line-total"><span>Line total</span><strong>{{ lineTotal(line) | currency:'BDT':'symbol-narrow' }}</strong></div>
+              <div class="line-total transaction-summary"><span>Line total</span><strong>{{ lineTotal(line) | currency:'BDT':'symbol-narrow' }}</strong></div>
               <button matButton type="button" [disabled]="items.length === 1" (click)="removeLine(index)">Remove</button>
             </div>
           }
         </mat-card-content>
       </mat-card>
 
-      <mat-card appearance="outlined">
+      <mat-card appearance="outlined" class="transaction-panel">
         <mat-card-header>
           <mat-card-title>Payments</mat-card-title><span class="spacer"></span>
           <button matButton type="button" (click)="addPayment()">Split payment</button>
         </mat-card-header>
         <mat-card-content formArrayName="payments" class="payments">
           @for (payment of payments.controls; track payment; let index = $index) {
-            <div class="payment-line" [formGroupName]="index">
+            <div class="payment-line transaction-line" [formGroupName]="index">
               <mat-form-field appearance="outline">
                 <mat-label>Payment method</mat-label>
                 <mat-select formControlName="paymentMethodId">
@@ -157,44 +157,51 @@ type PaymentForm = FormGroup<{
         </mat-card-content>
       </mat-card>
 
-      <div class="checkout-bar">
+      <div class="checkout-bar transaction-total-bar transaction-summary">
         <div><span>Total</span><strong>{{ invoiceTotal() | currency:'BDT':'symbol-narrow' }}</strong></div>
         <div><span>Paid</span><strong>{{ paymentTotal() | currency:'BDT':'symbol-narrow' }}</strong></div>
         <div [class.due]="dueAmount() > 0"><span>Due</span><strong>{{ dueAmount() | currency:'BDT':'symbol-narrow' }}</strong></div>
-        <button matButton="filled" type="submit" [disabled]="form.invalid || saving()">Complete sale</button>
+        <button matButton="filled" class="transaction-primary" type="submit" [disabled]="form.invalid || saving()">Complete sale</button>
       </div>
     </form>
   `,
   styles: `
     @use './sales.scss';
-    form, .lines, .payments { display:grid; gap:1rem; }
-    mat-card-content { padding-block-start:1rem; }
-    mat-card-header { align-items:center; }
+    form, .lines, .payments { display:grid; gap:var(--bshop-space-4); }
     .spacer { flex:1; }
-    .sale-header { display:grid; gap:.75rem; grid-template-columns:1fr 1fr; }
+    .sale-header { display:grid; gap:var(--bshop-space-3); grid-template-columns:1fr 1fr; }
     .span-all { grid-column:1/-1; }
     mat-form-field { width:100%; }
-    .barcode-box { align-items:center; border:1px solid #aeb8c2; border-radius:.5rem; display:flex; margin-inline-end:.5rem; }
-    .barcode-box input { border:0; min-width:17rem; outline:0; padding:.7rem; }
+    .barcode-box { align-items:center; background:var(--bshop-color-bg); border:1px solid var(--bshop-color-border); border-radius:var(--bshop-radius-md); display:flex; margin-inline-end:var(--bshop-space-2); }
+    .barcode-box:focus-within{border-color:var(--bshop-color-primary);box-shadow:var(--bshop-focus-ring)}
+    .barcode-box input { background:transparent;border:0;color:var(--bshop-color-text); min-width:17rem; outline:0; padding:var(--bshop-space-3); }
     .sale-line {
-      align-items:start; background:#f8fafc; border:1px solid #e1e7ec; border-radius:.75rem;
-      display:grid; gap:.6rem; grid-template-columns:minmax(15rem,2fr) repeat(4,1fr) minmax(12rem,1fr) auto auto; padding:.75rem;
+      align-items:start;
+      display:grid;
+      gap:var(--bshop-space-3);
+      grid-template-columns:minmax(15rem,2fr) repeat(4,1fr) minmax(12rem,1fr) minmax(7rem,auto) auto;
     }
-    .serial-field textarea { min-height:4rem; }
-    .payment-line { align-items:start; display:grid; gap:.75rem; grid-template-columns:1fr 1fr 1fr auto; }
-    .line-total { min-width:7rem; padding:.7rem .25rem; }
-    .line-total span, .checkout-bar span { color:#65727e; display:block; font-size:.78rem; }
+    .payment-line { align-items:start; display:grid; gap:var(--bshop-space-3); grid-template-columns:1fr 1fr 1fr auto; }
+    .line-total { align-self:stretch; display:grid; gap:var(--bshop-space-1); min-width:7rem; padding:var(--bshop-space-3); }
+    .checkout-bar span { display:block; font-size:.78rem; }
+    .line-total strong { align-self:end; font-size:1.05rem; text-align:right; white-space:nowrap; }
     .checkout-bar {
-      align-items:center; background:white; border:1px solid #d7dee5; border-radius:.75rem; bottom:1rem;
-      box-shadow:0 8px 30px #0f172a1a; display:flex; justify-content:flex-end; gap:2rem; padding:1rem;
+      align-items:center;
+      bottom:var(--bshop-space-3);
+      display:flex;
+      flex-wrap:wrap;
+      gap:var(--bshop-space-5);
+      justify-content:flex-end;
+      padding:var(--bshop-space-4);
       position:sticky; z-index:2;
     }
-    .checkout-bar strong { font-size:1.25rem; }
-    .checkout-bar .due strong { color:#b42318; }
+    .checkout-bar strong { font-size:1.25rem; }.checkout-bar button { min-height:3rem; }.checkout-bar .due strong { color:var(--bshop-color-danger); }
     @media(width <= 1050px){.sale-line{grid-template-columns:repeat(2,1fr)}}
     @media(width <= 700px){
       .sale-header,.sale-line,.payment-line{grid-template-columns:1fr}.span-all{grid-column:auto}
-      .barcode-box input{min-width:8rem}.checkout-bar{align-items:flex-end;flex-direction:column;gap:.5rem}
+      .barcode-box input{min-width:8rem}
+      .checkout-bar{align-items:stretch;flex-direction:column;gap:var(--bshop-space-3);position:static}
+      .line-total strong{text-align:left}
     }
   `
 })

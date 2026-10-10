@@ -1,55 +1,86 @@
-:host {
+app-admin-layout {
   display: block;
   min-height: 100vh;
 }
 
 .app-toolbar {
+  background: linear-gradient(90deg, var(--bshop-color-sidebar), var(--bshop-color-bg));
+  border-bottom: 1px solid var(--bshop-color-border-soft);
+  box-shadow: 0 .5rem 1.25rem rgb(0 0 0 / 14%);
+  color: var(--bshop-color-text);
+  display: flex;
+  gap: var(--bshop-space-3);
+  min-height: 4rem;
+  padding: 0 var(--bshop-space-5);
   position: sticky;
   top: 0;
-  z-index: 10;
-  background: #123b5d;
-  color: #fff;
+  z-index: 20;
 }
 
 .brand {
-  color: inherit;
-  font-size: 1.2rem;
-  font-weight: 700;
-  margin-inline-start: 0.75rem;
+  align-items: center;
+  color: var(--bshop-color-text);
+  display: inline-flex;
+  font-size: 1.25rem;
+  font-weight: 800;
+  gap: var(--bshop-space-2);
+  letter-spacing: -.055em;
   text-decoration: none;
 }
+.brand-mark { align-items: center; background: linear-gradient(145deg, color-mix(in srgb, var(--bshop-color-primary), white 32%), var(--bshop-color-primary) 48%, color-mix(in srgb, var(--bshop-color-primary), var(--bshop-color-bg) 52%)); border: 1px solid color-mix(in srgb, var(--bshop-color-text), transparent 70%); border-radius: .55rem; box-shadow: 0 .35rem 1rem color-mix(in srgb, var(--bshop-color-primary), transparent 68%); color: var(--bshop-color-text); display: inline-flex; font-size: 1.35rem; font-weight: 900; height: 2rem; justify-content: center; letter-spacing: -.1em; width: 2rem; }
+.brand-logo { display: block; height: 2.15rem; max-width: 8.4rem; object-fit: contain; object-position: left center; }
+.toolbar-icon-button, .sign-out-button { border-radius: var(--bshop-radius-md); color: var(--bshop-color-text) !important; min-width: 2.75rem; }.toolbar-icon-button { font-size: 1.25rem; padding: 0; }.toolbar-icon-button:hover, .sign-out-button:hover { background: color-mix(in srgb, var(--bshop-color-primary), transparent 86%); }
 
 .toolbar-spacer {
   flex: 1 1 auto;
 }
 
 .user-name {
-  font-size: 0.85rem;
-  margin-inline-end: 0.75rem;
+  color: var(--bshop-color-text-muted);
+  font-size: .84rem;
+  font-weight: 600;
+  max-width: 12rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
+.user-profile { align-items: center; display: inline-flex; gap: var(--bshop-space-2); }.user-avatar { align-items: center; background: color-mix(in srgb, var(--bshop-color-primary), var(--bshop-color-surface-raised) 58%); border: 1px solid color-mix(in srgb, var(--bshop-color-primary), transparent 50%); border-radius: 50%; color: var(--bshop-color-text); display: inline-flex; font-size: .8rem; font-weight: 800; height: 2.1rem; justify-content: center; width: 2.1rem; }
 
 .app-container {
-  min-height: calc(100vh - 64px);
+  background: var(--bshop-color-bg);
+  min-height: calc(100vh - 4rem);
 }
 
 .app-sidenav {
-  width: 15rem;
+  background: linear-gradient(180deg, var(--bshop-color-sidebar), var(--bshop-color-bg));
+  border: 0;
+  border-inline-end: 1px solid var(--bshop-color-border-soft);
   border-radius: 0;
+  color: var(--bshop-color-text);
+  overflow: hidden;
+  transition: width var(--bshop-transition-base);
+  width: 16rem;
 }
+.app-sidenav.is-collapsed { width: 5.25rem; }.sidenav-brand { align-items: center; border-bottom: 1px solid var(--bshop-color-border-soft); display: flex; gap: var(--bshop-space-3); height: 5.2rem; padding: 0 var(--bshop-space-5); }.sidenav-brand-name { color: var(--bshop-color-text); font-size: 1.25rem; font-weight: 800; letter-spacing: -.055em; }
+.navigation-list { display: grid; gap: .2rem; overflow-y: auto; padding: var(--bshop-space-4) var(--bshop-space-3); }.navigation-link { align-items: center; border: 1px solid transparent; border-radius: var(--bshop-radius-md); color: var(--bshop-color-text-muted); display: flex; font-size: .9rem; font-weight: 600; gap: var(--bshop-space-3); min-height: 2.75rem; padding: .55rem .7rem; text-decoration: none; transition: background var(--bshop-transition-fast), border-color var(--bshop-transition-fast), color var(--bshop-transition-fast), transform var(--bshop-transition-fast); }.navigation-link:hover { background: color-mix(in srgb, var(--bshop-color-primary), transparent 88%); color: var(--bshop-color-text); transform: translateX(2px); }.navigation-icon { align-items: center; color: color-mix(in srgb, var(--bshop-color-primary), var(--bshop-color-text) 42%); display: inline-flex; font-size: 1.1rem; justify-content: center; width: 1.4rem; }
 
 .active-link {
-  background: #dbeafe;
-  color: #123b5d;
-  font-weight: 600;
+  background: linear-gradient(100deg, color-mix(in srgb, var(--bshop-color-primary), transparent 14%), color-mix(in srgb, var(--bshop-color-primary), transparent 48%));
+  border-color: color-mix(in srgb, var(--bshop-color-primary), var(--bshop-color-text) 28%);
+  box-shadow: inset .18rem 0 var(--bshop-color-text), 0 .45rem 1rem color-mix(in srgb, var(--bshop-color-primary), transparent 83%);
+  color: var(--bshop-color-text);
 }
+.active-link .navigation-icon { color: var(--bshop-color-text); }.sidebar-collapse-button { align-items: center; background: color-mix(in srgb, var(--bshop-color-surface), transparent 22%); border: 1px solid var(--bshop-color-border-soft); border-radius: var(--bshop-radius-md); color: var(--bshop-color-text-muted) !important; display: flex; font-size: .85rem; gap: var(--bshop-space-3); margin: var(--bshop-space-3); min-height: 2.6rem; width: calc(100% - 1.5rem); }.sidebar-collapse-button:hover { border-color: color-mix(in srgb, var(--bshop-color-primary), transparent 42%); color: var(--bshop-color-text) !important; }.app-sidenav.is-collapsed :is(.sidenav-brand, .navigation-link, .sidebar-collapse-button) { justify-content: center; }.app-sidenav.is-collapsed :is(.sidenav-brand-name, .navigation-label) { opacity: 0; overflow: hidden; pointer-events: none; position: absolute; width: 0; }
 
 .page-content {
   margin-inline: auto;
   max-width: 90rem;
-  padding: 1.5rem;
+  min-width: 0;
+  padding: var(--bshop-space-6);
 }
 
-@media (width <= 700px) {
+@media (width <= 760px) {
+  .app-toolbar { padding-inline: var(--bshop-space-3); }.app-sidenav { box-shadow: var(--bshop-shadow-md); width: min(17rem, 82vw); }.sidenav-brand { height: 4.5rem; }.sidebar-collapse-button { display: none; }
   .user-name {
     display: none;
   }
@@ -58,3 +89,4 @@
     padding: 1rem;
   }
 }
+@media (width <= 420px) { .brand-name, .sign-out-button { display: none; }.app-toolbar { gap: var(--bshop-space-2); } }

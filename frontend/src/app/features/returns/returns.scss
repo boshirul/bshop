@@ -1,10 +1,8 @@
 .page-header{display:flex;justify-content:space-between;gap:1rem;align-items:flex-start;margin-bottom:1.25rem}
-.page-header h1{margin:.1rem 0}.eyebrow{letter-spacing:.12em;font-size:.72rem;font-weight:700;color:#587064}
+.page-header h1{color:var(--bshop-color-text);margin:.1rem 0}.eyebrow{letter-spacing:.12em;font-size:.72rem;font-weight:700;color:var(--bshop-color-primary)}
 .actions,.filters{display:flex;gap:.75rem;align-items:center;flex-wrap:wrap}.filters mat-form-field{min-width:220px}
 .summary-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:.75rem;margin:1rem 0}
-.summary-box{padding:1rem;border:1px solid #d9e2dc;border-radius:12px;background:#fff}.summary-box span{display:block;color:#66756c;font-size:.8rem}.summary-box strong{font-size:1.15rem}
-.table-wrap{overflow:auto}table{width:100%}.code{font-size:.78rem;color:#68756e}.money{text-align:right}
-.error-message{color:#a12828;background:#fff1f1;padding:.75rem;border-radius:8px}.success-message{color:#17643a;background:#edf9f1;padding:.75rem;border-radius:8px}
+.summary-box{padding:1rem;border:1px solid var(--bshop-color-border);border-radius:var(--bshop-radius-md);background:var(--bshop-color-surface)}.summary-box span{display:block;color:var(--bshop-color-text-muted);font-size:.8rem}.summary-box strong{color:var(--bshop-color-text);font-size:1.15rem}.table-wrap{background:var(--bshop-color-surface);border:1px solid var(--bshop-color-border);border-radius:var(--bshop-radius-lg);overflow:auto}table{background:var(--bshop-color-surface);color:var(--bshop-color-text);width:100%}.code{font-size:.78rem;color:var(--bshop-color-text-muted)}.money{text-align:right}.error-message{color:var(--bshop-color-danger);background:var(--bshop-color-danger-bg);padding:.75rem;border-radius:var(--bshop-radius-md)}.success-message{color:var(--bshop-color-success);background:var(--bshop-color-success-bg);padding:.75rem;border-radius:var(--bshop-radius-md)}
 .form-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:1rem}.full{grid-column:1/-1}
 .empty-state{padding:1.5rem;text-align:center;color:#69766f}.detail-card{margin-bottom:1rem}.status{font-weight:700}
 @media(max-width:720px){.page-header{display:block}.actions{margin-top:1rem}}

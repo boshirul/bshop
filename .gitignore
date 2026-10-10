@@ -6,6 +6,7 @@ obj/
 node_modules/
 dist/
 .angular/
+.pnpm-store/
 
 # IDE and user settings
 .vs/

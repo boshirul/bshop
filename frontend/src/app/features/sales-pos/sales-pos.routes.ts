@@ -1,5 +1,5 @@
 import { Routes } from '@angular/router';
-import { permissionGuard } from '../../core/auth/auth.guard';
+import { permissionGuard, permissionRedirectGuard } from '../../core/auth/auth.guard';
 import { permissions } from '../../core/auth/permissions';
 import { CustomerLedgerPage } from './customer-ledger-page';
 import { PosCheckoutPage } from './pos-checkout-page';
@@ -8,7 +8,12 @@ import { SalePaymentPage } from './sale-payment-page';
 import { SalesHistoryPage } from './sales-history-page';
 
 export const SALES_POS_ROUTES: Routes = [
-  { path: '', component: PosCheckoutPage, canMatch: [permissionGuard(permissions.sales.create)] },
+  {
+    path: '',
+    pathMatch: 'full',
+    component: PosCheckoutPage,
+    canMatch: [permissionRedirectGuard(permissions.sales.create, ['/sales-pos/history'])]
+  },
   { path: 'history', component: SalesHistoryPage },
   { path: 'customer-ledger', component: CustomerLedgerPage },
   {

@@ -44,10 +44,10 @@ import { PaymentMethodItem } from './settings.models';
       <p class="success-message" role="status">{{ successMessage() }}</p>
     }
 
-    <mat-card appearance="outlined">
+    <mat-card appearance="outlined" class="settings-panel">
       <mat-tab-group>
         <mat-tab label="Shop">
-          <form [formGroup]="shopForm" (ngSubmit)="saveShop()">
+          <form class="settings-form" [formGroup]="shopForm" (ngSubmit)="saveShop()">
             <mat-form-field appearance="outline">
               <mat-label>Shop name</mat-label>
               <input matInput formControlName="shopName" />
@@ -83,7 +83,7 @@ import { PaymentMethodItem } from './settings.models';
         </mat-tab>
 
         <mat-tab label="Invoice">
-          <form [formGroup]="invoiceForm" (ngSubmit)="saveInvoice()">
+          <form class="settings-form" [formGroup]="invoiceForm" (ngSubmit)="saveInvoice()">
             <mat-form-field appearance="outline">
               <mat-label>Invoice prefix</mat-label>
               <input matInput formControlName="invoicePrefix" />
@@ -112,7 +112,7 @@ import { PaymentMethodItem } from './settings.models';
 
         <mat-tab label="Tax & system">
           <div class="settings-split">
-            <form [formGroup]="taxForm" (ngSubmit)="saveTax()">
+            <form class="settings-form settings-section" [formGroup]="taxForm" (ngSubmit)="saveTax()">
               <h2>Tax</h2>
               <mat-form-field appearance="outline">
                 <mat-label>Tax name</mat-label>
@@ -127,7 +127,7 @@ import { PaymentMethodItem } from './settings.models';
                 <button matButton="filled" type="submit" [disabled]="taxForm.invalid">Save tax</button>
               }
             </form>
-            <form [formGroup]="systemForm" (ngSubmit)="saveSystem()">
+            <form class="settings-form settings-section" [formGroup]="systemForm" (ngSubmit)="saveSystem()">
               <h2>System</h2>
               <mat-form-field appearance="outline">
                 <mat-label>Currency code</mat-label>
@@ -156,7 +156,7 @@ import { PaymentMethodItem } from './settings.models';
         <mat-tab label="Payment methods">
           <div class="payment-layout">
             @if (canManage()) {
-              <form [formGroup]="paymentForm" (ngSubmit)="savePaymentMethod()">
+              <form class="settings-form settings-section" [formGroup]="paymentForm" (ngSubmit)="savePaymentMethod()">
                 <h2>{{ editingPaymentId() ? 'Edit' : 'Add' }} payment method</h2>
                 <mat-form-field appearance="outline">
                   <mat-label>Name</mat-label>
@@ -183,9 +183,10 @@ import { PaymentMethodItem } from './settings.models';
                 </div>
               </form>
             }
-            <div>
+            <div class="payment-methods settings-section">
               <h2>Configured methods</h2>
-              <table mat-table [dataSource]="paymentMethods()">
+              <div class="payment-table-wrap">
+                <table mat-table class="bshop-table" [dataSource]="paymentMethods()">
                 <ng-container matColumnDef="name">
                   <th mat-header-cell *matHeaderCellDef>Name</th>
                   <td mat-cell *matCellDef="let method">{{ method.name }}</td>
@@ -198,6 +199,14 @@ import { PaymentMethodItem } from './settings.models';
                   <th mat-header-cell *matHeaderCellDef>Type</th>
                   <td mat-cell *matCellDef="let method">{{ method.type }}</td>
                 </ng-container>
+                <ng-container matColumnDef="status">
+                  <th mat-header-cell *matHeaderCellDef>Status</th>
+                  <td mat-cell *matCellDef="let method">
+                    <span class="payment-status" [class.is-inactive]="!method.isActive">
+                      {{ method.isActive ? 'Active' : 'Inactive' }}
+                    </span>
+                  </td>
+                </ng-container>
                 <ng-container matColumnDef="actions">
                   <th mat-header-cell *matHeaderCellDef></th>
                   <td mat-cell *matCellDef="let method">
@@ -209,7 +218,8 @@ import { PaymentMethodItem } from './settings.models';
                 </ng-container>
                 <tr mat-header-row *matHeaderRowDef="paymentColumns"></tr>
                 <tr mat-row *matRowDef="let row; columns: paymentColumns"></tr>
-              </table>
+                </table>
+              </div>
               @if (!paymentMethods().length) {
                 <p class="empty-state">No payment methods configured.</p>
               }
@@ -219,35 +229,14 @@ import { PaymentMethodItem } from './settings.models';
       </mat-tab-group>
     </mat-card>
   `,
-  styles: `
-    .page-header { margin-block-end: 1.5rem; }
-    h1 { font-size: clamp(2rem, 4vw, 3rem); letter-spacing: -.04em; margin: 0; }
-    .page-header p:not(.eyebrow) { color: #5b6874; }
-    .eyebrow { color: #2563eb; font-size: .72rem; font-weight: 700; letter-spacing: .14em; }
-    form { display: grid; gap: .75rem; grid-template-columns: repeat(2, minmax(0, 1fr)); padding: 1.5rem; }
-    form h2 { grid-column: 1 / -1; margin: 0 0 .5rem; }
-    mat-form-field { width: 100%; }
-    .span-2 { grid-column: 1 / -1; }
-    .checks { align-items: center; display: flex; flex-wrap: wrap; gap: 1rem; }
-    .settings-split, .payment-layout { display: grid; gap: 1rem; grid-template-columns: repeat(2, minmax(0, 1fr)); }
-    .payment-layout > div { padding: 1.5rem; }
-    table { width: 100%; }
-    .error-message, .success-message { border-radius: .5rem; padding: .75rem; }
-    .error-message { background: #fde8e8; color: #9b1c1c; }
-    .success-message { background: #def7ec; color: #046c4e; }
-    .empty-state { color: #65727e; padding: 2rem; text-align: center; }
-    @media (width <= 800px) {
-      form, .settings-split, .payment-layout { grid-template-columns: 1fr; }
-      .span-2, form h2 { grid-column: auto; }
-    }
-  `
+  styles: `@use './settings.scss';`
 })
 export class SettingsPage implements OnInit {
   private readonly api = inject(SettingsApiService);
   private readonly auth = inject(AuthService);
 
   protected readonly paymentTypes = ['Cash', 'Card', 'MobileBanking', 'BankTransfer', 'Other'];
-  protected readonly paymentColumns = ['name', 'code', 'type', 'actions'];
+  protected readonly paymentColumns = ['name', 'code', 'type', 'status', 'actions'];
   protected readonly paymentMethods = signal<PaymentMethodItem[]>([]);
   protected readonly editingPaymentId = signal<string | null>(null);
   protected readonly errorMessage = signal('');

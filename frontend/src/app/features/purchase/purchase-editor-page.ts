@@ -33,13 +33,13 @@ type LineForm = FormGroup<{
       <div>
         <p class="eyebrow">RECEIVE INVENTORY</p>
         <h1>New purchase</h1>
-        <p>Confirm a supplier invoice and post its products into stock.</p>
+        <p class="transaction-helper">Confirm a supplier invoice and post its products into stock.</p>
       </div>
       <a matButton routerLink="/purchase">Cancel</a>
     </header>
     @if (errorMessage()) { <p class="error-message">{{ errorMessage() }}</p> }
     <form [formGroup]="form" (ngSubmit)="save()">
-      <mat-card appearance="outlined">
+      <mat-card appearance="outlined" class="transaction-panel">
         <mat-card-header><mat-card-title>Invoice information</mat-card-title></mat-card-header>
         <mat-card-content class="header-fields">
           <mat-form-field appearance="outline">
@@ -65,7 +65,7 @@ type LineForm = FormGroup<{
         </mat-card-content>
       </mat-card>
 
-      <mat-card appearance="outlined">
+      <mat-card appearance="outlined" class="transaction-panel">
         <mat-card-header>
           <mat-card-title>Products</mat-card-title>
           <span class="spacer"></span>
@@ -73,7 +73,7 @@ type LineForm = FormGroup<{
         </mat-card-header>
         <mat-card-content formArrayName="items" class="lines">
           @for (line of items.controls; track line; let index = $index) {
-            <div class="purchase-line" [formGroupName]="index">
+            <div class="purchase-line transaction-line" [formGroupName]="index">
               <mat-form-field appearance="outline">
                 <mat-label>Product</mat-label>
                 <mat-select formControlName="productId" (selectionChange)="selectProduct(index)">
@@ -98,7 +98,7 @@ type LineForm = FormGroup<{
                 <mat-label>VAT amount</mat-label>
                 <input matInput type="number" min="0" step=".01" formControlName="vatAmount" />
               </mat-form-field>
-              <div class="line-total">
+              <div class="line-total transaction-summary">
                 <span>Line total</span>
                 <strong>{{ lineTotal(line) | currency:'BDT':'symbol-narrow' }}</strong>
               </div>
@@ -108,7 +108,7 @@ type LineForm = FormGroup<{
         </mat-card-content>
       </mat-card>
 
-      <mat-card appearance="outlined">
+      <mat-card appearance="outlined" class="transaction-panel">
         <mat-card-header><mat-card-title>Initial payment (optional)</mat-card-title></mat-card-header>
         <mat-card-content class="payment-fields" formGroupName="payment">
           <mat-form-field appearance="outline">
@@ -131,38 +131,55 @@ type LineForm = FormGroup<{
         </mat-card-content>
       </mat-card>
 
-      <div class="save-bar">
+      <div class="save-bar transaction-total-bar transaction-summary">
         <div><span>Invoice total</span><strong>{{ invoiceTotal() | currency:'BDT':'symbol-narrow' }}</strong></div>
-        <button matButton="filled" type="submit" [disabled]="form.invalid || saving()">Confirm purchase</button>
+        <button matButton="filled" class="transaction-primary" type="submit" [disabled]="form.invalid || saving()">Confirm purchase</button>
       </div>
     </form>
   `,
   styles: `
     @use './purchase.scss';
-    form { display: grid; gap: 1rem; }
-    mat-card-content { padding-block-start: 1rem; }
+    form { display: grid; gap: var(--bshop-space-4); padding-block-end: var(--bshop-space-3); }
+    mat-card-content { padding-block-start: var(--bshop-space-4); }
     mat-card-header { align-items: center; }
     .spacer { flex: 1; }
-    .header-fields, .payment-fields { display: grid; gap: .75rem; grid-template-columns: repeat(3, 1fr); }
+    .header-fields, .payment-fields { display: grid; gap: var(--bshop-space-3); grid-template-columns: repeat(3, 1fr); }
     .span-all { grid-column: 1 / -1; }
     mat-form-field { width: 100%; }
-    .lines { display: grid; gap: .75rem; }
+    .lines { display: grid; gap: var(--bshop-space-3); }
     .purchase-line {
-      align-items: start; background: #f8fafc; border: 1px solid #e1e7ec; border-radius: .75rem;
-      display: grid; gap: .6rem; grid-template-columns: minmax(14rem, 2fr) repeat(4, 1fr) auto auto; padding: .75rem;
+      align-items: start;
+      display: grid;
+      gap: var(--bshop-space-3);
+      grid-template-columns: minmax(14rem, 2fr) repeat(4, 1fr) minmax(7rem, auto) auto;
     }
-    .line-total { min-width: 7rem; padding: .7rem .25rem; }
-    .line-total span, .save-bar span { color: #65727e; display: block; font-size: .78rem; }
+    .line-total {
+      align-self: stretch;
+      display: grid;
+      gap: var(--bshop-space-1);
+      min-width: 7rem;
+      padding: var(--bshop-space-3);
+    }
+    .line-total span, .save-bar span { display: block; font-size: .78rem; }
+    .line-total strong { align-self: end; font-size: 1.05rem; text-align: right; white-space: nowrap; }
     .save-bar {
-      align-items: center; background: white; border: 1px solid #d7dee5; border-radius: .75rem; bottom: 1rem;
-      box-shadow: 0 8px 30px #0f172a1a; display: flex; justify-content: flex-end; gap: 2rem; padding: 1rem;
-      position: sticky; z-index: 2;
+      align-items: center;
+      bottom: var(--bshop-space-3);
+      display: flex;
+      gap: var(--bshop-space-5);
+      justify-content: flex-end;
+      padding: var(--bshop-space-4);
+      position: sticky;
+      z-index: 2;
     }
-    .save-bar strong { font-size: 1.35rem; }
+    .save-bar strong { font-size: 1.35rem; font-variant-numeric: tabular-nums; }
     @media (width <= 1000px) { .purchase-line { grid-template-columns: repeat(2, 1fr); } }
     @media (width <= 700px) {
       .header-fields, .payment-fields, .purchase-line { grid-template-columns: 1fr; }
       .span-all { grid-column: auto; }
+      .save-bar { align-items: stretch; bottom: auto; flex-direction: column; gap: var(--bshop-space-3); position: static; }
+      .save-bar button { min-height: 2.75rem; }
+      .line-total strong { text-align: left; }
     }
   `
 })

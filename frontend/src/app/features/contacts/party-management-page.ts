@@ -43,21 +43,21 @@ import {
         </p>
       </div>
       @if (canManage() && !showEditor()) {
-        <button matButton="filled" type="button" (click)="beginCreate()">
+        <button matButton="filled" class="party-primary" type="button" (click)="beginCreate()">
           Add {{ isCustomer() ? 'customer' : 'supplier' }}
         </button>
       }
     </header>
 
     @if (showEditor()) {
-      <mat-card appearance="outlined" class="editor-card">
+      <mat-card appearance="outlined" class="editor-card party-panel">
         <mat-card-header>
           <mat-card-title>
             {{ editingId() ? 'Edit' : 'Add' }} {{ isCustomer() ? 'customer' : 'supplier' }}
           </mat-card-title>
         </mat-card-header>
         <mat-card-content>
-          <form [formGroup]="form" (ngSubmit)="save()">
+          <form class="party-form" [formGroup]="form" (ngSubmit)="save()">
             <mat-form-field appearance="outline">
               <mat-label>Name</mat-label>
               <input matInput formControlName="name" />
@@ -92,7 +92,7 @@ import {
             </mat-form-field>
             <mat-checkbox formControlName="isActive">Active</mat-checkbox>
             <div class="form-actions span-2">
-              <button matButton="filled" type="submit" [disabled]="form.invalid || saving()">
+              <button matButton="filled" class="party-primary" type="submit" [disabled]="form.invalid || saving()">
                 Save
               </button>
               <button matButton type="button" (click)="cancel()">Cancel</button>
@@ -102,32 +102,35 @@ import {
       </mat-card>
     }
 
-    <mat-card appearance="outlined">
+    <mat-card appearance="outlined" class="party-panel">
       <mat-card-content>
         <form class="search-form" (ngSubmit)="load(1)">
           <mat-form-field appearance="outline">
             <mat-label>Search name, code, phone, or contact</mat-label>
             <input matInput [formControl]="search" />
           </mat-form-field>
-          <button matButton="filled" type="submit">Search</button>
+          <button matButton="filled" class="party-primary" type="submit">Search</button>
         </form>
 
         @if (errorMessage()) {
           <p class="error-message" role="alert">{{ errorMessage() }}</p>
         }
 
+        @if (loading()) {
+          <p class="bshop-loading" role="status">Loading {{ isCustomer() ? 'customers' : 'suppliers' }}…</p>
+        } @else {
         <div class="table-wrap">
-          <table mat-table [dataSource]="items()">
+          <table mat-table class="bshop-table" [dataSource]="items()">
             <ng-container matColumnDef="party">
               <th mat-header-cell *matHeaderCellDef>Name</th>
-              <td mat-cell *matCellDef="let item">
+              <td mat-cell *matCellDef="let item" class="contact-details">
                 <strong>{{ item.name }}</strong>
                 <div class="code">{{ code(item) }}</div>
               </td>
             </ng-container>
             <ng-container matColumnDef="contact">
               <th mat-header-cell *matHeaderCellDef>Contact</th>
-              <td mat-cell *matCellDef="let item">
+              <td mat-cell *matCellDef="let item" [class.financial-value]="isCustomer()">
                 {{ item.phone }}
                 <div class="muted">{{ item.email || contactPerson(item) || '—' }}</div>
               </td>
@@ -165,6 +168,7 @@ import {
             <tr mat-row *matRowDef="let row; columns: columns"></tr>
           </table>
         </div>
+        }
 
         @if (!items().length && !loading()) {
           <p class="empty-state">No records match your search.</p>
@@ -186,37 +190,7 @@ import {
       </mat-card-content>
     </mat-card>
   `,
-  styles: `
-    .page-header {
-      align-items: end;
-      display: flex;
-      justify-content: space-between;
-      margin-block-end: 1.5rem;
-    }
-    h1 { font-size: clamp(2rem, 4vw, 3rem); letter-spacing: -0.04em; margin: 0; }
-    .page-header p:not(.eyebrow), .muted { color: #5b6874; }
-    .eyebrow { color: #2563eb; font-size: .72rem; font-weight: 700; letter-spacing: .14em; }
-    .editor-card { margin-block-end: 1.25rem; }
-    form { display: grid; gap: .75rem; grid-template-columns: repeat(2, minmax(0, 1fr)); margin-block-start: 1rem; }
-    .span-2 { grid-column: 1 / -1; }
-    .form-actions, .pagination { align-items: center; display: flex; gap: .5rem; }
-    .search-form { align-items: start; grid-template-columns: minmax(16rem, 32rem) auto; justify-content: start; }
-    mat-form-field { width: 100%; }
-    .table-wrap { overflow-x: auto; }
-    table { width: 100%; }
-    .code { color: #52616d; font-family: ui-monospace, Consolas, monospace; font-size: .78rem; }
-    .muted { font-size: .82rem; }
-    .status { background: #def7ec; border-radius: 999px; color: #046c4e; padding: .2rem .55rem; }
-    .status.inactive { background: #eceff1; color: #5f6b75; }
-    .error-message { background: #fde8e8; border-radius: .5rem; color: #9b1c1c; padding: .75rem; }
-    .empty-state { color: #65727e; padding: 2rem; text-align: center; }
-    .pagination { justify-content: flex-end; margin-block-start: 1rem; }
-    @media (width <= 700px) {
-      .page-header { align-items: start; flex-direction: column; gap: 1rem; }
-      form, .search-form { grid-template-columns: 1fr; }
-      .span-2 { grid-column: auto; }
-    }
-  `
+  styles: `@use './party-management.scss';`
 })
 export class PartyManagementPage implements OnInit {
   readonly kind = input.required<PartyKind>();

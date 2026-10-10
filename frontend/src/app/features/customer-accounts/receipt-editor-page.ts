@@ -20,9 +20,9 @@ import { CustomerAccountsApiService } from './customer-accounts-api.service';
     MatFormFieldModule, MatInputModule, MatSelectModule],
   template: `
     <header class="page-header"><div><p class="eyebrow">RECEIVABLE COLLECTION</p><h1>New customer receipt</h1>
-      <p>Payments are allocated to the customer’s oldest outstanding invoices first.</p></div><a matButton routerLink="/customer-accounts">Cancel</a></header>
+      <p class="transaction-helper">Payments are allocated to the customer’s oldest outstanding invoices first.</p></div><a matButton routerLink="/customer-accounts">Cancel</a></header>
     @if(errorMessage()){<p class="error-message">{{errorMessage()}}</p>}
-    <mat-card appearance="outlined"><mat-card-content><form [formGroup]="form" (ngSubmit)="save()">
+    <mat-card appearance="outlined" class="transaction-panel"><mat-card-content><form [formGroup]="form" (ngSubmit)="save()">
       <mat-form-field appearance="outline"><mat-label>Customer</mat-label><mat-select formControlName="customerId">
         @for(customer of customers();track customer.id){<mat-option [value]="customer.id">{{customer.name}} · {{customer.customerCode}}</mat-option>}</mat-select></mat-form-field>
       <mat-form-field appearance="outline"><mat-label>Payment method</mat-label><mat-select formControlName="paymentMethodId">
@@ -31,12 +31,25 @@ import { CustomerAccountsApiService } from './customer-accounts-api.service';
       <mat-form-field appearance="outline"><mat-label>Received on</mat-label><input matInput type="date" formControlName="receivedOn"/></mat-form-field>
       <mat-form-field appearance="outline"><mat-label>Reference number</mat-label><input matInput formControlName="referenceNumber"/></mat-form-field>
       <mat-form-field appearance="outline" class="span"><mat-label>Notes</mat-label><textarea matInput rows="3" formControlName="notes"></textarea></mat-form-field>
-      <div class="allocation-note span"><strong>{{form.controls.amount.value|currency:'BDT':'symbol-narrow'}}</strong>
+      <div class="allocation-note span transaction-summary"><strong>{{form.controls.amount.value|currency:'BDT':'symbol-narrow'}}</strong>
         will be allocated atomically when this receipt is posted. Any remainder is applied to the customer account.</div>
-      <div class="form-actions span"><button matButton="filled" [disabled]="form.invalid||saving()">Post receipt</button></div>
+      <div class="form-actions span transaction-total-bar"><button matButton="filled" class="transaction-primary" [disabled]="form.invalid||saving()">Post receipt</button></div>
     </form></mat-card-content></mat-card>
   `,
-  styles: `@use './customer-accounts.scss';form{display:grid;gap:.75rem;grid-template-columns:1fr 1fr}mat-form-field{width:100%}.span{grid-column:1/-1}.allocation-note{background:#eaf2ff;border-radius:.65rem;color:#27466f;padding:1rem}.form-actions{justify-content:flex-end}@media(width <= 650px){form{grid-template-columns:1fr}.span{grid-column:auto}}`
+  styles: `
+    @use './customer-accounts.scss';
+    form{display:grid;gap:var(--bshop-space-3);grid-template-columns:1fr 1fr}
+    mat-form-field{width:100%}
+    .span{grid-column:1/-1}
+    .allocation-note{display:grid;gap:var(--bshop-space-2);padding:var(--bshop-space-4)}
+    .allocation-note strong{font-size:1.35rem;font-variant-numeric:tabular-nums;text-align:right;white-space:nowrap}
+    .form-actions{justify-content:flex-end;padding:var(--bshop-space-3)}
+    @media(width <= 650px){
+      form{grid-template-columns:1fr}
+      .span{grid-column:auto}
+      .form-actions button{min-height:2.75rem;width:100%}
+    }
+  `
 })
 export class ReceiptEditorPage implements OnInit {
   private readonly api = inject(CustomerAccountsApiService);

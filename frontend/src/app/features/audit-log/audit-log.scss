@@ -10,3 +10,4 @@ table { width: 100%; }
 .empty-state { color: #65727e; padding: 2rem; text-align: center; }
 .error-message { background: #fde8e8; border-radius: .5rem; color: #9b1c1c; padding: .75rem; }
 @media (width <= 900px) { .filters { grid-template-columns: 1fr; } .page-header { align-items: start; flex-direction: column; gap: 1rem; } }
+.eyebrow{color:var(--bshop-color-primary)}h1{color:var(--bshop-color-text)}.filters{background:var(--bshop-color-surface);border:1px solid var(--bshop-color-border);border-radius:var(--bshop-radius-lg);padding:var(--bshop-space-4)}.table-wrap{background:var(--bshop-color-surface);border:1px solid var(--bshop-color-border);border-radius:var(--bshop-radius-lg)}table{color:var(--bshop-color-text)}.code,.empty-state{color:var(--bshop-color-text-muted)}.error-message{background:var(--bshop-color-danger-bg);color:var(--bshop-color-danger)}

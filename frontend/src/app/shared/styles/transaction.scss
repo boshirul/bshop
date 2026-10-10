@@ -1,0 +1,7 @@
+.transaction-panel,.transaction-line,.transaction-summary{background:var(--bshop-color-surface);border:1px solid var(--bshop-color-border);border-radius:var(--bshop-radius-md);color:var(--bshop-color-text)}
+.transaction-line{padding:var(--bshop-space-3)}.transaction-line:hover{border-color:color-mix(in srgb,var(--bshop-color-primary),transparent 45%)}
+.transaction-total-bar,.save-bar,.checkout-bar{background:var(--bshop-color-sidebar);border:1px solid var(--bshop-color-border);border-radius:var(--bshop-radius-lg);box-shadow:var(--bshop-shadow-md);color:var(--bshop-color-text);margin-block-end:var(--bshop-space-3)}
+.transaction-total-bar span,.save-bar span,.checkout-bar span,.line-total span,.transaction-helper{color:var(--bshop-color-text-muted)}
+.transaction-total-bar strong,.save-bar strong,.checkout-bar strong,.line-total strong{color:var(--bshop-color-text);font-variant-numeric:tabular-nums}
+.transaction-primary,.save-bar button[matButton="filled"],.checkout-bar button[matButton="filled"]{background:linear-gradient(100deg,var(--bshop-color-primary),color-mix(in srgb,var(--bshop-color-primary),white 28%));color:var(--bshop-color-text)}
+@media(width <= 700px){.transaction-total-bar,.save-bar,.checkout-bar{bottom:0;position:static}}

@@ -25,11 +25,11 @@ type LineForm = FormGroup<{
     MatFormFieldModule, MatInputModule, MatSelectModule],
   template: `
     <header class="page-header"><div><p class="eyebrow">QUOTATIONS</p><h1>{{quotationId?'Edit':'New'}} quotation</h1>
-      <p>Prepare a customer offer without reserving or changing stock.</p></div>
+      <p class="transaction-helper">Prepare a customer offer without reserving or changing stock.</p></div>
       <a matButton routerLink="/quotations">Back to quotations</a></header>
     @if(errorMessage()){<p class="error-message">{{errorMessage()}}</p>}
     <form [formGroup]="form" (ngSubmit)="save()">
-      <mat-card appearance="outlined"><mat-card-content class="header-grid">
+      <mat-card appearance="outlined" class="transaction-panel"><mat-card-content class="header-grid">
         <mat-form-field appearance="outline"><mat-label>Customer</mat-label><mat-select formControlName="customerId">
           @for(customer of customers();track customer.id){<mat-option [value]="customer.id">{{customer.name}} · {{customer.customerCode}}</mat-option>}
         </mat-select></mat-form-field>
@@ -39,11 +39,11 @@ type LineForm = FormGroup<{
         <mat-form-field appearance="outline" class="span-all"><mat-label>Terms and conditions</mat-label>
           <textarea matInput rows="3" formControlName="terms"></textarea></mat-form-field>
       </mat-card-content></mat-card>
-      <mat-card appearance="outlined"><mat-card-header><mat-card-title>Items</mat-card-title><span class="spacer"></span>
+      <mat-card appearance="outlined" class="transaction-panel"><mat-card-header><mat-card-title>Items</mat-card-title><span class="spacer"></span>
         <button matButton type="button" (click)="addLine()">Add line</button></mat-card-header>
         <mat-card-content formArrayName="items" class="lines">
           @for(line of items.controls;track line;let index=$index){
-            <div class="quote-line" [formGroupName]="index">
+            <div class="quote-line transaction-line" [formGroupName]="index">
               <mat-form-field appearance="outline"><mat-label>Product</mat-label><mat-select formControlName="productId" (selectionChange)="selectProduct(index)">
                 @for(product of products();track product.id){<mat-option [value]="product.id">{{product.name}} · {{product.productCode}}</mat-option>}
               </mat-select></mat-form-field>
@@ -51,23 +51,39 @@ type LineForm = FormGroup<{
               <mat-form-field appearance="outline"><mat-label>Unit price</mat-label><input matInput type="number" min="0" step=".01" formControlName="unitPrice" /></mat-form-field>
               <mat-form-field appearance="outline"><mat-label>Discount</mat-label><input matInput type="number" min="0" step=".01" formControlName="discountAmount" /></mat-form-field>
               <mat-form-field appearance="outline"><mat-label>VAT</mat-label><input matInput type="number" min="0" step=".01" formControlName="vatAmount" /></mat-form-field>
-              <div class="line-total"><span>Line total</span><strong>{{lineTotal(line)|currency:'BDT':'symbol-narrow'}}</strong></div>
+              <div class="line-total transaction-summary"><span>Line total</span><strong>{{lineTotal(line)|currency:'BDT':'symbol-narrow'}}</strong></div>
               <button matButton type="button" [disabled]="items.length===1" (click)="removeLine(index)">Remove</button>
             </div>
           }
         </mat-card-content>
       </mat-card>
-      <div class="save-bar"><div><span>Quotation total</span><strong>{{total()|currency:'BDT':'symbol-narrow'}}</strong></div>
-        <button matButton="filled" type="submit" [disabled]="form.invalid||saving()">Save quotation</button></div>
+      <div class="save-bar transaction-total-bar transaction-summary"><div><span>Quotation total</span><strong>{{total()|currency:'BDT':'symbol-narrow'}}</strong></div>
+        <button matButton="filled" class="transaction-primary" type="submit" [disabled]="form.invalid||saving()">Save quotation</button></div>
     </form>
   `,
   styles: `
-    @use './quotations.scss';form,.lines{display:grid;gap:1rem}mat-card-content{padding-block-start:1rem}mat-card-header{align-items:center}
-    mat-form-field{width:100%}.spacer{flex:1}.header-grid{display:grid;gap:.75rem;grid-template-columns:repeat(2,1fr)}.span-all{grid-column:1/-1}
-    .quote-line{align-items:start;background:#f8fafc;border:1px solid #e1e7ec;border-radius:.75rem;display:grid;gap:.6rem;grid-template-columns:minmax(14rem,2fr) repeat(4,1fr) auto auto;padding:.75rem}
-    .line-total{min-width:7rem;padding:.7rem .25rem}.line-total span,.save-bar span{color:#65727e;display:block;font-size:.78rem}
-    .save-bar{align-items:center;background:#fff;border:1px solid #d7dee5;border-radius:.75rem;bottom:1rem;display:flex;gap:2rem;justify-content:flex-end;padding:1rem;position:sticky}
-    .save-bar strong{font-size:1.25rem}@media(width <= 1050px){.quote-line{grid-template-columns:repeat(2,1fr)}}@media(width <= 700px){.header-grid,.quote-line{grid-template-columns:1fr}.span-all{grid-column:auto}}
+    @use './quotations.scss';
+    form,.lines{display:grid;gap:var(--bshop-space-4)}
+    mat-card-content{padding-block-start:var(--bshop-space-4)}
+    mat-card-header{align-items:center}
+    mat-form-field{width:100%}
+    .spacer{flex:1}
+    .header-grid{display:grid;gap:var(--bshop-space-3);grid-template-columns:repeat(2,1fr)}
+    .span-all{grid-column:1/-1}
+    .quote-line{align-items:start;display:grid;gap:var(--bshop-space-3);grid-template-columns:minmax(14rem,2fr) repeat(4,1fr) minmax(7rem,auto) auto}
+    .line-total{align-self:stretch;display:grid;gap:var(--bshop-space-1);min-width:7rem;padding:var(--bshop-space-3)}
+    .line-total span,.save-bar span{display:block;font-size:.78rem}
+    .line-total strong{align-self:end;font-size:1.05rem;text-align:right;white-space:nowrap}
+    .save-bar{align-items:center;bottom:var(--bshop-space-3);display:flex;gap:var(--bshop-space-5);justify-content:flex-end;padding:var(--bshop-space-4);position:sticky;z-index:2}
+    .save-bar strong{font-size:1.25rem;font-variant-numeric:tabular-nums}
+    @media(width <= 1050px){.quote-line{grid-template-columns:repeat(2,1fr)}}
+    @media(width <= 700px){
+      .header-grid,.quote-line{grid-template-columns:1fr}
+      .span-all{grid-column:auto}
+      .save-bar{align-items:stretch;bottom:auto;flex-direction:column;gap:var(--bshop-space-3);position:static}
+      .save-bar button{min-height:2.75rem}
+      .line-total strong{text-align:left}
+    }
   `
 })
 export class QuotationEditorPage implements OnInit {

@@ -127,6 +127,7 @@ tr.invalid td {
   padding: .75rem 1rem;
   border-radius: .75rem;
 }
+.eyebrow,.hint,.upload-box small{color:var(--bshop-color-text-muted)}h1,h2{color:var(--bshop-color-text)}.upload-box,.summary-box,mat-card{background:var(--bshop-color-surface);border-color:var(--bshop-color-border)}.upload-box:hover{border-color:var(--bshop-color-primary)}.summary-box span{color:var(--bshop-color-text-muted)}.table-wrap{background:var(--bshop-color-surface);border:1px solid var(--bshop-color-border);border-radius:var(--bshop-radius-lg)}table{color:var(--bshop-color-text)}th,td{border-color:var(--bshop-color-border-soft)}th{color:var(--bshop-color-text-muted)}tr.invalid td{background:var(--bshop-color-danger-bg)}.error-message{background:var(--bshop-color-danger-bg);color:var(--bshop-color-danger)}.success-message{background:var(--bshop-color-success-bg);color:var(--bshop-color-success)}
 
 .error-message {
   color: #991b1b;

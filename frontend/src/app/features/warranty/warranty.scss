@@ -6,7 +6,7 @@
   margin-block-end: 1rem;
 }
 .eyebrow {
-  color: #64748b;
+  color: var(--bshop-color-primary);
   font-size: .75rem;
   font-weight: 700;
   letter-spacing: .12em;
@@ -27,13 +27,13 @@ h1, h2 { margin-block: 0 .35rem; }
   margin-block: 1rem;
 }
 .summary-box {
-  background: #f8fafc;
-  border: 1px solid #e2e8f0;
+  background: var(--bshop-color-surface);
+  border: 1px solid var(--bshop-color-border);
   border-radius: .75rem;
   padding: .9rem;
 }
 .summary-box span, .code {
-  color: #64748b;
+  color: var(--bshop-color-text-muted);
   font-size: .82rem;
 }
 .summary-box strong {
@@ -41,29 +41,28 @@ h1, h2 { margin-block: 0 .35rem; }
   font-size: 1.15rem;
   margin-block-start: .25rem;
 }
-.table-wrap { overflow: auto; }
-table { width: 100%; }
+.table-wrap {background:var(--bshop-color-surface);border:1px solid var(--bshop-color-border);border-radius:var(--bshop-radius-lg); overflow: auto; } table {background:var(--bshop-color-surface);color:var(--bshop-color-text); width: 100%; }
 .money { text-align: right; }
 .status {
-  background: #e0f2fe;
+  background: color-mix(in srgb,var(--bshop-color-primary),transparent 85%);
   border-radius: 999px;
-  color: #075985;
+  color: var(--bshop-color-primary);
   display: inline-block;
   font-weight: 700;
   padding: .2rem .55rem;
 }
 .error-message {
-  background: #fef2f2;
+  background: var(--bshop-color-danger-bg);
   border: 1px solid #fecaca;
   border-radius: .6rem;
-  color: #b42318;
+  color: var(--bshop-color-danger);
   padding: .75rem;
 }
 .success-message {
-  background: #ecfdf3;
+  background: var(--bshop-color-success-bg);
   border: 1px solid #bbf7d0;
   border-radius: .6rem;
-  color: #067647;
+  color: var(--bshop-color-success);
   padding: .75rem;
 }
 .actions {

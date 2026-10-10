@@ -5,7 +5,8 @@
 .section-title { align-items: center; display: flex; justify-content: space-between; margin-block: 1.25rem .75rem; }
 .section-title h2 { margin: 0; }
 .aging-grid { display: grid; gap: .75rem; grid-template-columns: repeat(6, minmax(0, 1fr)); margin-block-end: 1rem; }
-.aging-grid .summary-box:last-child { background: #eaf2ff; }
+.aging-grid .summary-box:last-child { background:color-mix(in srgb,var(--bshop-color-primary),transparent 86%); }
+.section-title h2{color:var(--bshop-color-text)}.filters{background:var(--bshop-color-surface);border:1px solid var(--bshop-color-border);border-radius:var(--bshop-radius-lg);padding:var(--bshop-space-4)}
 .allocation-input { max-width: 9rem; }
 .print-only { display: none; }
 @media (width <= 900px) { .aging-grid { grid-template-columns: repeat(3, 1fr); } }

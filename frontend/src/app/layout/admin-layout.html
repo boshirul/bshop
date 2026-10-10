@@ -1,28 +1,34 @@
 <mat-toolbar class="app-toolbar">
-  <button matButton type="button" (click)="drawer.toggle()" aria-label="Toggle navigation">
-    Menu
+  <button matButton class="toolbar-icon-button" type="button" (click)="toggleNavigation()"
+    [attr.aria-label]="isMobile() ? 'Open navigation menu' : (sidebarCollapsed() ? 'Expand navigation sidebar' : 'Collapse navigation sidebar')">
+    <span aria-hidden="true">☰</span>
   </button>
-  <a class="brand" routerLink="/dashboard">KhanShop</a>
+  <a class="brand" routerLink="/dashboard" aria-label="BShop dashboard"><img class="brand-logo" src="assets/bshop-logo.png" alt="BShop" /></a>
   <span class="toolbar-spacer"></span>
-  <span class="user-name">{{ auth.currentUser()?.fullName }}</span>
-  <button matButton type="button" (click)="logout()">Sign out</button>
+  <div class="user-profile"><span class="user-avatar" aria-hidden="true">{{ auth.currentUser()?.fullName?.slice(0, 1) ?? 'B' }}</span><span class="user-name">{{ auth.currentUser()?.fullName ?? 'BShop user' }}</span></div>
+  <button matButton class="sign-out-button" type="button" (click)="logout()">Sign out</button>
 </mat-toolbar>
 
 <mat-sidenav-container class="app-container">
-  <mat-sidenav #drawer class="app-sidenav" mode="side" opened>
-    <mat-nav-list aria-label="Main navigation">
+  <mat-sidenav class="app-sidenav" [class.is-collapsed]="sidebarCollapsed() && !isMobile()" [mode]="isMobile() ? 'over' : 'side'" [opened]="isMobile() ? mobileDrawerOpen() : true" (closedStart)="closeMobileNavigation()">
+    <div class="sidenav-brand" aria-label="BShop navigation"><img class="brand-logo" src="assets/bshop-logo.png" alt="BShop" /></div>
+    <nav class="navigation-list" aria-label="Main navigation">
       @for (item of navigation; track item.route) {
         @if (canShow(item)) {
           <a
-            mat-list-item
+            class="navigation-link"
             [routerLink]="item.route"
             routerLinkActive="active-link"
+            [attr.aria-label]="item.label"
+            [attr.title]="sidebarCollapsed() && !isMobile() ? item.label : null"
+            (click)="closeMobileNavigation()"
           >
-            {{ item.label }}
+            <span class="navigation-icon" aria-hidden="true">{{ item.icon }}</span><span class="navigation-label">{{ item.label }}</span>
           </a>
         }
       }
-    </mat-nav-list>
+    </nav>
+    <button matButton class="sidebar-collapse-button" type="button" (click)="toggleNavigation()" [attr.aria-label]="sidebarCollapsed() ? 'Expand navigation sidebar' : 'Collapse navigation sidebar'"><span aria-hidden="true">{{ sidebarCollapsed() ? '›' : '‹' }}</span><span class="navigation-label">Collapse</span></button>
   </mat-sidenav>
 
   <mat-sidenav-content>
