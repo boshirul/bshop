@@ -1,5 +1,7 @@
 using System.Security.Cryptography;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.Hosting;
 using RetailShop.Application.Auditing;
 using RetailShop.Application.Common;
 using RetailShop.Application.Products;
@@ -10,8 +12,19 @@ namespace RetailShop.Infrastructure.Products;
 
 internal sealed class ProductService(
     RetailShopDbContext dbContext,
-    IAuditService auditService) : IProductService
+    IAuditService auditService,
+    IConfiguration? configuration = null,
+    IHostEnvironment? hostEnvironment = null) : IProductService
 {
+    private const int MaxImages = 9;
+    private const int MaxVideos = 2;
+    private const long MaxImageBytes = 5 * 1024 * 1024;
+    private const long MaxVideoBytes = 100 * 1024 * 1024;
+    // Resolve relative locations from the content root so deployments can mount media
+    // separately from the API's published application directory.
+    private readonly string mediaRoot = Path.GetFullPath(
+        configuration?["MediaStorage:RootPath"] ?? Path.Combine("..", "RetailShop.Media"),
+        hostEnvironment?.ContentRootPath ?? Directory.GetCurrentDirectory());
     public async Task<PagedResult<ProductListItem>> GetProductsAsync(
         string? search,
         Guid? categoryId,
@@ -73,7 +86,10 @@ internal sealed class ProductService(
                 product.IsSerialRequired,
                 product.AllowOnlineSale,
                 product.IsActive,
-                product.Images
+                product.Media
+                    .Where(media => media.MediaType == ProductMediaType.Image && media.IsPrimary)
+                    .Select(media => "/api/products/" + product.Id + "/media/" + media.Id + "/content")
+                    .FirstOrDefault() ?? product.Images
                     .Where(image => image.IsPrimary)
                     .Select(image => image.Url)
                     .FirstOrDefault()))
@@ -293,6 +309,309 @@ internal sealed class ProductService(
         await dbContext.SaveChangesAsync(cancellationToken);
         return OperationResult<bool>.Success(true);
     }
+
+    public async Task<IReadOnlyCollection<ProductMediaItem>> GetMediaAsync(
+        Guid productId,
+        CancellationToken cancellationToken) =>
+        await dbContext.ProductMedia.AsNoTracking()
+            .Where(item => item.ProductId == productId)
+            .OrderByDescending(item => item.IsPrimary)
+            .ThenBy(item => item.SortOrder)
+            .Select(item => ToMediaItem(item))
+            .ToArrayAsync(cancellationToken);
+
+    public async Task<OperationResult<ProductMediaItem>> AddMediaAsync(
+        Guid productId,
+        ProductMediaUpload upload,
+        Guid performedBy,
+        CancellationToken cancellationToken)
+    {
+        if (!await dbContext.Products.AnyAsync(item => item.Id == productId, cancellationToken))
+        {
+            return OperationResult<ProductMediaItem>.Failure("Product not found.");
+        }
+
+        var classification = await ValidateUploadAsync(upload, cancellationToken);
+        if (classification.Error is not null)
+        {
+            return OperationResult<ProductMediaItem>.Failure(classification.Error);
+        }
+
+        var count = await dbContext.ProductMedia.CountAsync(
+            item => item.ProductId == productId && item.MediaType == classification.Type,
+            cancellationToken);
+        var limit = classification.Type == ProductMediaType.Image ? MaxImages : MaxVideos;
+        if (count >= limit)
+        {
+            return OperationResult<ProductMediaItem>.Failure(
+                $"A product can have at most {limit} {classification.Type.ToString().ToLowerInvariant()} files.");
+        }
+
+        var storageKey = await StoreUploadAsync(productId, upload, classification, cancellationToken);
+        try
+        {
+            var hasPrimaryImage = await dbContext.ProductMedia.AnyAsync(
+                item => item.ProductId == productId && item.MediaType == ProductMediaType.Image && item.IsPrimary,
+                cancellationToken);
+            var lastSortOrder = await dbContext.ProductMedia
+                .Where(item => item.ProductId == productId)
+                .Select(item => (int?)item.SortOrder)
+                .MaxAsync(cancellationToken) ?? -1;
+            var media = new ProductMedia(
+                productId,
+                classification.Type,
+                storageKey,
+                classification.Type == ProductMediaType.Image ? storageKey : null,
+                classification.ContentType,
+                upload.Length,
+                classification.Type == ProductMediaType.Image && !hasPrimaryImage,
+                lastSortOrder + 1)
+            {
+                CreatedBy = performedBy
+            };
+            dbContext.ProductMedia.Add(media);
+            await dbContext.SaveChangesAsync(cancellationToken);
+            await auditService.WriteAsync("Create", "ProductMedia", media.Id.ToString(),
+                $"Added {classification.Type.ToString().ToLowerInvariant()} media to product {productId}.", performedBy, cancellationToken);
+            return OperationResult<ProductMediaItem>.Success(ToMediaItem(media));
+        }
+        catch
+        {
+            DeleteStoredFile(storageKey);
+            throw;
+        }
+    }
+
+    public async Task<OperationResult<ProductMediaItem>> ReplaceMediaAsync(
+        Guid productId,
+        Guid mediaId,
+        ProductMediaUpload upload,
+        Guid performedBy,
+        CancellationToken cancellationToken)
+    {
+        var media = await dbContext.ProductMedia.SingleOrDefaultAsync(
+            item => item.Id == mediaId && item.ProductId == productId, cancellationToken);
+        if (media is null) return OperationResult<ProductMediaItem>.Failure("Product media was not found.");
+
+        var classification = await ValidateUploadAsync(upload, cancellationToken);
+        if (classification.Error is not null) return OperationResult<ProductMediaItem>.Failure(classification.Error);
+        if (classification.Type != media.MediaType)
+        {
+            return OperationResult<ProductMediaItem>.Failure("Replacement media must be the same type as the existing item.");
+        }
+
+        var storageKey = await StoreUploadAsync(productId, upload, classification, cancellationToken);
+        var oldKey = media.StorageKey;
+        var oldThumbnailKey = media.ThumbnailStorageKey;
+        try
+        {
+            media.ReplaceFile(storageKey,
+                classification.Type == ProductMediaType.Image ? storageKey : oldThumbnailKey,
+                classification.ContentType, upload.Length);
+            media.LastModifiedBy = performedBy;
+            await dbContext.SaveChangesAsync(cancellationToken);
+            DeleteStoredFile(oldKey);
+            if (classification.Type == ProductMediaType.Image && !string.IsNullOrWhiteSpace(oldThumbnailKey) && oldThumbnailKey != oldKey)
+                DeleteStoredFile(oldThumbnailKey);
+            await auditService.WriteAsync("Update", "ProductMedia", media.Id.ToString(),
+                "Replaced product media.", performedBy, cancellationToken);
+            return OperationResult<ProductMediaItem>.Success(ToMediaItem(media));
+        }
+        catch
+        {
+            DeleteStoredFile(storageKey);
+            throw;
+        }
+    }
+
+    public async Task<OperationResult<bool>> DeleteMediaAsync(
+        Guid productId, Guid mediaId, Guid performedBy, CancellationToken cancellationToken)
+    {
+        var media = await dbContext.ProductMedia.SingleOrDefaultAsync(
+            item => item.Id == mediaId && item.ProductId == productId, cancellationToken);
+        if (media is null) return OperationResult<bool>.Failure("Product media was not found.");
+        var storageKey = media.StorageKey;
+        var thumbnailStorageKey = media.ThumbnailStorageKey;
+        media.DeletedBy = performedBy;
+        dbContext.ProductMedia.Remove(media);
+        await dbContext.SaveChangesAsync(cancellationToken);
+        DeleteStoredFile(storageKey);
+        if (!string.IsNullOrWhiteSpace(thumbnailStorageKey) && thumbnailStorageKey != storageKey)
+            DeleteStoredFile(thumbnailStorageKey);
+        await auditService.WriteAsync("Delete", "ProductMedia", mediaId.ToString(),
+            "Removed product media.", performedBy, cancellationToken);
+        return OperationResult<bool>.Success(true);
+    }
+
+    public async Task<OperationResult<ProductMediaItem>> ReplaceVideoPosterAsync(
+        Guid productId,
+        Guid mediaId,
+        ProductMediaUpload upload,
+        Guid performedBy,
+        CancellationToken cancellationToken)
+    {
+        var media = await dbContext.ProductMedia.SingleOrDefaultAsync(
+            item => item.Id == mediaId && item.ProductId == productId, cancellationToken);
+        if (media is null || media.MediaType != ProductMediaType.Video)
+            return OperationResult<ProductMediaItem>.Failure("A video must be selected before adding a poster image.");
+
+        var classification = await ValidateUploadAsync(upload, cancellationToken);
+        if (classification.Error is not null) return OperationResult<ProductMediaItem>.Failure(classification.Error);
+        if (classification.Type != ProductMediaType.Image)
+            return OperationResult<ProductMediaItem>.Failure("Video posters must be JPEG, PNG, or WebP images.");
+
+        var storageKey = await StoreUploadAsync(productId, upload, classification, cancellationToken);
+        var oldKey = media.ThumbnailStorageKey;
+        try
+        {
+            media.ReplaceThumbnail(storageKey);
+            media.LastModifiedBy = performedBy;
+            await dbContext.SaveChangesAsync(cancellationToken);
+            if (!string.IsNullOrWhiteSpace(oldKey)) DeleteStoredFile(oldKey);
+            await auditService.WriteAsync("Update", "ProductMedia", media.Id.ToString(),
+                "Updated video poster image.", performedBy, cancellationToken);
+            return OperationResult<ProductMediaItem>.Success(ToMediaItem(media));
+        }
+        catch
+        {
+            DeleteStoredFile(storageKey);
+            throw;
+        }
+    }
+
+    public async Task<OperationResult<bool>> SetPrimaryMediaAsync(
+        Guid productId, Guid mediaId, Guid performedBy, CancellationToken cancellationToken)
+    {
+        var selected = await dbContext.ProductMedia.SingleOrDefaultAsync(
+            item => item.Id == mediaId && item.ProductId == productId, cancellationToken);
+        if (selected is null || selected.MediaType != ProductMediaType.Image)
+            return OperationResult<bool>.Failure("Select an image from this product's gallery.");
+        var images = await dbContext.ProductMedia.Where(item =>
+            item.ProductId == productId && item.MediaType == ProductMediaType.Image).ToArrayAsync(cancellationToken);
+        foreach (var image in images) { image.IsPrimary = image.Id == mediaId; image.LastModifiedBy = performedBy; }
+        await dbContext.SaveChangesAsync(cancellationToken);
+        return OperationResult<bool>.Success(true);
+    }
+
+    public async Task<OperationResult<IReadOnlyCollection<ProductMediaItem>>> ReorderMediaAsync(
+        Guid productId, ReorderProductMediaRequest request, Guid performedBy, CancellationToken cancellationToken)
+    {
+        var media = await dbContext.ProductMedia.Where(item => item.ProductId == productId)
+            .ToArrayAsync(cancellationToken);
+        if (media.Length != request.MediaIds.Count || media.Any(item => !request.MediaIds.Contains(item.Id)))
+            return OperationResult<IReadOnlyCollection<ProductMediaItem>>.Failure("The gallery order does not match this product's media.");
+        for (var index = 0; index < request.MediaIds.Count; index++)
+        {
+            var item = media.Single(value => value.Id == request.MediaIds.ElementAt(index));
+            item.SortOrder = index;
+            item.LastModifiedBy = performedBy;
+        }
+        await dbContext.SaveChangesAsync(cancellationToken);
+        return OperationResult<IReadOnlyCollection<ProductMediaItem>>.Success(
+            media.OrderByDescending(item => item.IsPrimary).ThenBy(item => item.SortOrder).Select(ToMediaItem).ToArray());
+    }
+
+    public async Task<OperationResult<ProductMediaFile>> GetMediaFileAsync(
+        Guid productId, Guid mediaId, bool thumbnail, bool publicOnly, CancellationToken cancellationToken)
+    {
+        var media = await dbContext.ProductMedia.AsNoTracking().Include(item => item.Product)
+            .SingleOrDefaultAsync(item => item.Id == mediaId && item.ProductId == productId, cancellationToken);
+        if (media is null || (publicOnly && (!media.Product.IsActive || !media.Product.AllowOnlineSale)))
+            return OperationResult<ProductMediaFile>.Failure("Media was not found.");
+        var key = thumbnail && !string.IsNullOrWhiteSpace(media.ThumbnailStorageKey)
+            ? media.ThumbnailStorageKey : media.StorageKey;
+        var path = ResolvePath(key);
+        var contentType = thumbnail && !string.IsNullOrWhiteSpace(media.ThumbnailStorageKey)
+            ? GetContentTypeFromStorageKey(key)
+            : media.ContentType;
+        return File.Exists(path)
+            ? OperationResult<ProductMediaFile>.Success(new ProductMediaFile(path, contentType))
+            : OperationResult<ProductMediaFile>.Failure("Media file was not found.");
+    }
+
+    private static ProductMediaItem ToMediaItem(ProductMedia media) => new(
+        media.Id, media.MediaType.ToString(),
+        $"/api/products/{media.ProductId}/media/{media.Id}/content",
+        media.ThumbnailStorageKey is null ? null : $"/api/products/{media.ProductId}/media/{media.Id}/content?thumbnail=true",
+        media.ContentType, media.FileSize, media.IsPrimary, media.SortOrder, media.CreatedOn);
+
+    private async Task<(ProductMediaType Type, string ContentType, string? Error)> ValidateUploadAsync(
+        ProductMediaUpload upload, CancellationToken cancellationToken)
+    {
+        if (upload.Length <= 0) return (default, string.Empty, "Select a non-empty media file.");
+        if (!upload.Content.CanSeek) return (default, string.Empty, "The uploaded file stream is not readable.");
+        var header = new byte[32];
+        var read = await upload.Content.ReadAsync(header.AsMemory(), cancellationToken);
+        upload.Content.Position = 0;
+        var isJpeg = read >= 3 && header[0] == 0xFF && header[1] == 0xD8 && header[2] == 0xFF;
+        var isPng = read >= 8 && header.AsSpan(0, 8).SequenceEqual(new byte[] { 137, 80, 78, 71, 13, 10, 26, 10 });
+        var isWebp = read >= 12 && header.AsSpan(0, 4).SequenceEqual("RIFF"u8) && header.AsSpan(8, 4).SequenceEqual("WEBP"u8);
+        var isMp4 = read >= 12 && header.AsSpan(4, 4).SequenceEqual("ftyp"u8);
+        if (isJpeg || isPng || isWebp)
+        {
+            if (upload.Length > MaxImageBytes) return (default, string.Empty, "Images must not exceed 5 MB.");
+            return (ProductMediaType.Image, isJpeg ? "image/jpeg" : isPng ? "image/png" : "image/webp", null);
+        }
+        if (isMp4)
+        {
+            if (upload.Length > MaxVideoBytes) return (default, string.Empty, "Videos must not exceed 100 MB.");
+            return (ProductMediaType.Video, "video/mp4", null);
+        }
+        return (default, string.Empty, "Only valid JPEG, PNG, WebP, and browser-compatible MP4 files are allowed.");
+    }
+
+    private async Task<string> StoreUploadAsync(Guid productId, ProductMediaUpload upload,
+        (ProductMediaType Type, string ContentType, string? Error) classification, CancellationToken cancellationToken)
+    {
+        var extension = classification.Type == ProductMediaType.Video ? ".mp4" : classification.ContentType switch
+        { "image/jpeg" => ".jpg", "image/png" => ".png", _ => ".webp" };
+        var storageKey = Path.Combine(productId.ToString("N"), $"{Guid.NewGuid():N}{extension}");
+        var destination = ResolvePath(storageKey);
+        Directory.CreateDirectory(Path.GetDirectoryName(destination)!);
+        var temporary = destination + ".upload";
+        try
+        {
+            await using (var output = new FileStream(temporary, FileMode.CreateNew, FileAccess.Write, FileShare.None, 1024 * 128, FileOptions.Asynchronous | FileOptions.SequentialScan))
+            {
+                await upload.Content.CopyToAsync(output, cancellationToken);
+                await output.FlushAsync(cancellationToken);
+            }
+
+            // Windows cannot rename an open file. Dispose the upload stream before
+            // atomically moving the validated file into its permanent location.
+            File.Move(temporary, destination);
+            return storageKey;
+        }
+        catch
+        {
+            if (File.Exists(temporary)) File.Delete(temporary);
+            throw;
+        }
+    }
+
+    private string ResolvePath(string storageKey)
+    {
+        var root = Path.GetFullPath(mediaRoot);
+        var path = Path.GetFullPath(Path.Combine(root, storageKey));
+        if (!path.StartsWith(root + Path.DirectorySeparatorChar, StringComparison.OrdinalIgnoreCase))
+            throw new InvalidOperationException("Invalid media storage key.");
+        return path;
+    }
+
+    private void DeleteStoredFile(string storageKey)
+    {
+        var path = ResolvePath(storageKey);
+        if (File.Exists(path)) File.Delete(path);
+    }
+
+    private static string GetContentTypeFromStorageKey(string storageKey) =>
+        Path.GetExtension(storageKey).ToLowerInvariant() switch
+        {
+            ".jpg" or ".jpeg" => "image/jpeg",
+            ".png" => "image/png",
+            ".webp" => "image/webp",
+            _ => "application/octet-stream"
+        };
 
     private static IQueryable<ProductDetail> ProjectDetails(IQueryable<Product> query) =>
         query.Select(product => new ProductDetail(

@@ -8,6 +8,9 @@ dist/
 .angular/
 .pnpm-store/
 
+# Product uploads are application data, stored outside the published API files.
+src/RetailShop.Media/
+
 # IDE and user settings
 .vs/
 .vscode/

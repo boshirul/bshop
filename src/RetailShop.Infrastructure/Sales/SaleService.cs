@@ -131,10 +131,14 @@ internal sealed class SaleService(
             invoiceSetting.LastModifiedBy = performedBy;
         }
 
+        // PostgreSQL timestamptz values are stored as UTC. Browser date controls may
+        // submit a local offset, so normalize once before the sale, stock, payments,
+        // and customer ledger entries share this timestamp.
+        var saleDate = request.SaleDate.ToUniversalTime();
         var sale = new Sale(
             invoiceNumber,
             request.CustomerId,
-            request.SaleDate,
+            saleDate,
             request.Notes)
         {
             CreatedBy = performedBy
@@ -335,7 +339,7 @@ internal sealed class SaleService(
             sale.Id,
             request.PaymentMethodId,
             request.Amount,
-            request.PaidOn,
+            request.PaidOn.ToUniversalTime(),
             performedBy,
             request.ReferenceNumber,
             request.Notes);

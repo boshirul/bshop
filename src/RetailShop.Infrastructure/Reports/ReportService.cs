@@ -1,4 +1,5 @@
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Configuration;
 using RetailShop.Application.Reports;
 using RetailShop.Domain.OnlineOrders;
 using RetailShop.Domain.Returns;
@@ -8,34 +9,26 @@ using RetailShop.Infrastructure.Persistence;
 
 namespace RetailShop.Infrastructure.Reports;
 
-internal sealed class ReportService(RetailShopDbContext dbContext) : IReportService
+internal sealed class ReportService(
+    RetailShopDbContext dbContext,
+    IConfiguration configuration) : IReportService
 {
     public async Task<DashboardSummary> GetDashboardAsync(
         CancellationToken cancellationToken)
     {
-        var now = DateTimeOffset.UtcNow;
-        var todayStart = new DateTimeOffset(
-            now.Year,
-            now.Month,
-            now.Day,
-            0,
-            0,
-            0,
-            TimeSpan.Zero);
-        var monthStart = new DateTimeOffset(
-            now.Year,
-            now.Month,
-            1,
-            0,
-            0,
-            0,
-            TimeSpan.Zero);
+        var timeZone = GetBusinessTimeZone();
+        var localNow = TimeZoneInfo.ConvertTime(DateTimeOffset.UtcNow, timeZone);
+        var todayStart = StartOfBusinessDay(localNow.Date, timeZone);
+        var tomorrowStart = StartOfBusinessDay(localNow.Date.AddDays(1), timeZone);
+        var monthStart = StartOfBusinessDay(
+            new DateTime(localNow.Year, localNow.Month, 1), timeZone);
 
         var todaySales = await dbContext.Sales
             .AsNoTracking()
             .Where(item =>
                 item.Status == SaleStatus.Completed &&
-                item.SaleDate >= todayStart)
+                item.SaleDate >= todayStart &&
+                item.SaleDate < tomorrowStart)
             .SumAsync(item => (decimal?)item.GrandTotal, cancellationToken) ?? 0;
         var monthSales = await dbContext.Sales
             .AsNoTracking()
@@ -90,6 +83,27 @@ internal sealed class ReportService(RetailShopDbContext dbContext) : IReportServ
             pendingReturns,
             pendingWarranty);
     }
+
+    private TimeZoneInfo GetBusinessTimeZone()
+    {
+        var timeZoneId = configuration["BusinessTimeZone:Id"] ?? "Asia/Dhaka";
+        try
+        {
+            return TimeZoneInfo.FindSystemTimeZoneById(timeZoneId);
+        }
+        catch (TimeZoneNotFoundException)
+        {
+            return TimeZoneInfo.Utc;
+        }
+        catch (InvalidTimeZoneException)
+        {
+            return TimeZoneInfo.Utc;
+        }
+    }
+
+    private static DateTimeOffset StartOfBusinessDay(DateTime date, TimeZoneInfo timeZone) =>
+        new DateTimeOffset(DateTime.SpecifyKind(date.Date, DateTimeKind.Unspecified),
+            timeZone.GetUtcOffset(date.Date)).ToUniversalTime();
 
     public async Task<IReadOnlyCollection<SalesReportItem>> GetSalesAsync(
         DateOnly from,

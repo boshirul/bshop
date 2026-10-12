@@ -8,6 +8,7 @@ import {
   OnlineProductListItem,
   PagedResult
 } from './online-store.models';
+import { ProductMediaItem } from '../products/product.models';
 
 @Injectable({ providedIn: 'root' })
 export class OnlineStoreApiService {
@@ -23,6 +24,10 @@ export class OnlineStoreApiService {
 
   checkout(body: unknown): Observable<OnlineOrderDetail> {
     return this.post('online-store/checkout', body);
+  }
+
+  media(productId: string): Observable<ProductMediaItem[]> {
+    return this.get(`products/${productId}/media`);
   }
 
   private get<T>(path: string, params?: HttpParams): Observable<T> {

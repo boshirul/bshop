@@ -92,7 +92,7 @@ type PaymentForm = FormGroup<{
                 <mat-select formControlName="productId" (selectionChange)="selectProduct(index)">
                   @for (product of products(); track product.id) {
                     <mat-option [value]="product.id">
-                      {{ product.name }} · {{ product.productCode }} · Stock {{ available(product.id) }}
+                      <span class="pos-product-option">@if (product.imageUrl) { <img [src]="product.imageUrl" alt="" (error)="showImagePlaceholder($event)" /><span class="pos-product-placeholder" aria-hidden="true">▧</span> } @else { <span class="pos-product-placeholder" aria-hidden="true">▧</span> }<span>{{ product.name }} · {{ product.productCode }} · Stock {{ available(product.id) }}</span></span>
                     </mat-option>
                   }
                 </mat-select>
@@ -196,6 +196,7 @@ type PaymentForm = FormGroup<{
       position:sticky; z-index:2;
     }
     .checkout-bar strong { font-size:1.25rem; }.checkout-bar button { min-height:3rem; }.checkout-bar .due strong { color:var(--bshop-color-danger); }
+    .pos-product-option{align-items:center;display:flex;gap:var(--bshop-space-2)}.pos-product-option img,.pos-product-placeholder{background:var(--bshop-color-bg);border-radius:.25rem;height:1.6rem;object-fit:cover;width:1.6rem}.pos-product-placeholder{align-items:center;color:var(--bshop-color-text-muted);display:inline-flex;justify-content:center}.pos-product-option img:not([hidden]) + .pos-product-placeholder{display:none}.pos-product-option img[hidden]{display:none}
     @media(width <= 1050px){.sale-line{grid-template-columns:repeat(2,1fr)}}
     @media(width <= 700px){
       .sale-header,.sale-line,.payment-line{grid-template-columns:1fr}.span-all{grid-column:auto}
@@ -240,6 +241,10 @@ export class PosCheckoutPage implements OnInit {
     return this.payments.controls.reduce((sum, payment) => sum + payment.controls.amount.value, 0);
   });
   protected readonly dueAmount = computed(() => Math.max(0, this.invoiceTotal() - this.paymentTotal()));
+
+  protected showImagePlaceholder(event: Event): void {
+    (event.currentTarget as HTMLImageElement).hidden = true;
+  }
 
   protected get items(): FormArray<LineForm> { return this.form.controls.items; }
   protected get payments(): FormArray<PaymentForm> { return this.form.controls.payments; }

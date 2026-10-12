@@ -9,6 +9,7 @@ import { MatInputModule } from '@angular/material/input';
 import { MatSelectModule } from '@angular/material/select';
 import { OnlineStoreApiService } from './online-store-api.service';
 import { OnlineProductListItem } from './online-store.models';
+import { ProductMediaItem } from '../products/product.models';
 
 type CartLine = OnlineProductListItem & { quantity: number };
 
@@ -49,20 +50,26 @@ type CartLine = OnlineProductListItem & { quantity: number };
           <mat-card appearance="outlined" class="product-card">
             <mat-card-content>
               <div class="product-image">
-                @if (product.imageUrl) { <img [src]="product.imageUrl" [alt]="product.name" /> }
+                @if (product.imageUrl) { <img [src]="product.imageUrl" [alt]="product.name" (error)="showImagePlaceholder($event)" /><span class="product-image__placeholder">No image</span> }
                 @else { <span>No image</span> }
               </div>
               <h2>{{ product.name }}</h2>
               <p class="code">{{ product.productCode }} · {{ product.brandName || 'No brand' }}</p>
               <p><strong>{{ product.salePrice | currency:'BDT':'symbol-narrow' }}</strong></p>
               <p class="code">Available: {{ product.availableQuantity }} {{ product.unitSymbol }}</p>
-              <button matButton="filled" type="button"
+              <div class="actions"><button matButton type="button" (click)="openMedia(product)">View media</button><button matButton="filled" type="button"
                 [disabled]="product.availableQuantity <= 0"
-                (click)="addToCart(product)">Add to cart</button>
+                (click)="addToCart(product)">Add to cart</button></div>
             </mat-card-content>
           </mat-card>
         }
       </div>
+
+      @if (selectedProduct()) {
+        <mat-card appearance="outlined" class="media-viewer"><mat-card-content><div class="media-viewer__header"><h2>{{ selectedProduct()!.name }} media</h2><button matButton type="button" (click)="closeMedia()">Close</button></div>
+          @if (selectedMedia().length) { <div class="media-viewer__gallery">@for (media of selectedMedia(); track media.id) { @if (media.mediaType === 'Image') { <img [src]="media.url" [alt]="selectedProduct()!.name" /> } @else { <video [src]="media.url" [poster]="media.thumbnailUrl || undefined" controls preload="metadata"></video> } }</div> } @else { <p class="empty-state">No product media is available.</p> }
+        </mat-card-content></mat-card>
+      }
 
       <mat-card appearance="outlined">
         <mat-card-content>
@@ -112,6 +119,8 @@ export class OnlineStorePage implements OnInit {
   protected readonly error = signal('');
   protected readonly success = signal('');
   protected readonly saving = signal(false);
+  protected readonly selectedProduct = signal<OnlineProductListItem | null>(null);
+  protected readonly selectedMedia = signal<ProductMediaItem[]>([]);
   protected readonly form = new FormGroup({
     customerName: new FormControl('', { nonNullable: true, validators: [Validators.required] }),
     customerPhone: new FormControl('', { nonNullable: true, validators: [Validators.required] }),
@@ -144,6 +153,18 @@ export class OnlineStorePage implements OnInit {
       return [...lines, { ...product, quantity: 1 }];
     });
   }
+
+  protected openMedia(product: OnlineProductListItem): void {
+    this.selectedProduct.set(product);
+    this.selectedMedia.set([]);
+    this.api.media(product.id).subscribe({ next: media => this.selectedMedia.set(media), error: error => this.fail(error, 'Product media could not be loaded.') });
+  }
+
+  protected showImagePlaceholder(event: Event): void {
+    (event.currentTarget as HTMLImageElement).hidden = true;
+  }
+
+  protected closeMedia(): void { this.selectedProduct.set(null); this.selectedMedia.set([]); }
 
   protected setQuantity(id: string, event: Event): void {
     const requested = Number((event.target as HTMLInputElement).value);

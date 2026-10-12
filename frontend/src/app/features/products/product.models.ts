@@ -47,6 +47,20 @@ export interface ProductImageItem {
   isPrimary: boolean;
 }
 
+export type ProductMediaType = 'Image' | 'Video';
+
+export interface ProductMediaItem {
+  id: string;
+  mediaType: ProductMediaType;
+  url: string;
+  thumbnailUrl: string | null;
+  contentType: string;
+  fileSize: number;
+  isPrimary: boolean;
+  sortOrder: number;
+  createdAt: string;
+}
+
 export interface ProductDetail extends ProductListItem {
   categoryId: string;
   subCategoryId: string | null;

@@ -1,4 +1,4 @@
-import { HttpClient, HttpParams } from '@angular/common/http';
+import { HttpClient, HttpEvent, HttpParams, HttpRequest } from '@angular/common/http';
 import { inject, Injectable } from '@angular/core';
 import { map, Observable } from 'rxjs';
 import { API_BASE_URL } from '../../core/http/api-base-url.token';
@@ -8,6 +8,7 @@ import {
   PagedResult,
   ProductDetail,
   ProductImageItem,
+  ProductMediaItem,
   ProductListItem,
   ProductModelItem,
   SaveProductRequest,
@@ -66,6 +67,50 @@ export class ProductApiService {
         `${this.apiBaseUrl}/products/${productId}/images`,
         { url, altText: null, isPrimary: true }
       )
+      .pipe(map((response) => this.requireData(response)));
+  }
+
+  getMedia(productId: string): Observable<ProductMediaItem[]> {
+    return this.http.get<ApiResponse<ProductMediaItem[]>>(`${this.apiBaseUrl}/products/${productId}/media`)
+      .pipe(map((response) => this.requireData(response)));
+  }
+
+  uploadMedia(productId: string, file: File): Observable<HttpEvent<ApiResponse<ProductMediaItem>>> {
+    const data = new FormData();
+    data.append('file', file, file.name);
+    return this.http.request(new HttpRequest('POST', `${this.apiBaseUrl}/products/${productId}/media`, data, {
+      reportProgress: true
+    }));
+  }
+
+  replaceMedia(productId: string, mediaId: string, file: File): Observable<HttpEvent<ApiResponse<ProductMediaItem>>> {
+    const data = new FormData();
+    data.append('file', file, file.name);
+    return this.http.request(new HttpRequest('PUT', `${this.apiBaseUrl}/products/${productId}/media/${mediaId}`, data, {
+      reportProgress: true
+    }));
+  }
+
+  replaceVideoPoster(productId: string, mediaId: string, file: File): Observable<HttpEvent<ApiResponse<ProductMediaItem>>> {
+    const data = new FormData();
+    data.append('file', file, file.name);
+    return this.http.request(new HttpRequest('PUT', `${this.apiBaseUrl}/products/${productId}/media/${mediaId}/poster`, data, {
+      reportProgress: true
+    }));
+  }
+
+  deleteMedia(productId: string, mediaId: string): Observable<boolean> {
+    return this.http.delete<ApiResponse<boolean>>(`${this.apiBaseUrl}/products/${productId}/media/${mediaId}`)
+      .pipe(map((response) => this.requireData(response)));
+  }
+
+  setPrimaryMedia(productId: string, mediaId: string): Observable<boolean> {
+    return this.http.post<ApiResponse<boolean>>(`${this.apiBaseUrl}/products/${productId}/media/${mediaId}/primary`, {})
+      .pipe(map((response) => this.requireData(response)));
+  }
+
+  reorderMedia(productId: string, mediaIds: string[]): Observable<ProductMediaItem[]> {
+    return this.http.put<ApiResponse<ProductMediaItem[]>>(`${this.apiBaseUrl}/products/${productId}/media/order`, { mediaIds })
       .pipe(map((response) => this.requireData(response)));
   }
 

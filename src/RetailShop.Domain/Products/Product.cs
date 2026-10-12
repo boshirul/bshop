@@ -70,5 +70,7 @@ public sealed class Product : AuditableEntity
 
     public ICollection<ProductImage> Images { get; set; } = [];
 
+    public ICollection<ProductMedia> Media { get; set; } = [];
+
     public ICollection<ProductBarcode> Barcodes { get; set; } = [];
 }

@@ -1,4 +1,4 @@
-import { HttpErrorResponse } from '@angular/common/http';
+import { HttpErrorResponse, HttpEventType } from '@angular/common/http';
 import { Component, inject, OnInit, signal } from '@angular/core';
 import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
 import { MatButtonModule } from '@angular/material/button';
@@ -8,11 +8,12 @@ import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatInputModule } from '@angular/material/input';
 import { MatSelectModule } from '@angular/material/select';
 import { ActivatedRoute, Router, RouterLink } from '@angular/router';
-import { finalize, forkJoin, map, Observable, of, switchMap } from 'rxjs';
+import { filter, finalize, forkJoin, map, Observable, of, switchMap } from 'rxjs';
 import { ProductApiService } from './product-api.service';
 import {
   NamedMasterDataItem,
   ProductDetail,
+  ProductMediaItem,
   ProductModelItem,
   SaveProductRequest,
   SubCategoryItem,
@@ -150,6 +151,39 @@ import {
             <mat-checkbox formControlName="isActive">Active</mat-checkbox>
           </div>
 
+          <section class="product-media" aria-labelledby="product-media-heading">
+            <div class="product-media__header"><div><h2 id="product-media-heading">Product media</h2><p>Up to 9 JPEG, PNG, or WebP images (5 MB each) and 2 MP4 videos (100 MB each).</p></div>
+              <button matButton="filled" type="button" class="transaction-primary" (click)="mediaPicker.click()">Add media</button>
+              <input #mediaPicker type="file" accept="image/jpeg,image/png,image/webp,video/mp4" multiple (change)="selectMedia($event)" />
+            </div>
+            @if (!productId) { <p class="transaction-helper">Selected files will upload after the product is saved.</p> }
+            @if (uploadProgress() !== null) { <p class="transaction-helper">Uploading {{ uploadProgress() }}%</p> }
+            @if (pendingFiles().length) { <p class="transaction-helper">{{ pendingFiles().length }} file(s) ready to upload.</p> }
+            @if (media().length) {
+              <div class="media-gallery">
+                @for (item of media(); track item.id; let index = $index) {
+                  <article class="media-tile" [class.primary]="item.isPrimary">
+                    @if (item.mediaType === 'Image') { <img [src]="item.thumbnailUrl || item.url" [alt]="form.controls.name.value || 'Product image'" /> }
+                    @else { <video [src]="item.url" [poster]="item.thumbnailUrl || undefined" controls preload="metadata"></video> }
+                    <div class="media-tile__meta"><strong>{{ item.mediaType }}</strong><span>{{ formatFileSize(item.fileSize) }}</span></div>
+                    <div class="media-tile__actions">
+                      @if (item.mediaType === 'Image' && !item.isPrimary) { <button matButton type="button" (click)="makePrimary(item)">Set primary</button> }
+                      @if (item.isPrimary) { <span class="status">Primary</span> }
+                      <button matButton type="button" [disabled]="index === 0" (click)="moveMedia(index, -1)">←</button><button matButton type="button" [disabled]="index === media().length - 1" (click)="moveMedia(index, 1)">→</button>
+                      <button matButton type="button" (click)="replacementPicker.click()">Replace</button>
+                      <input #replacementPicker type="file" [accept]="item.mediaType === 'Image' ? 'image/jpeg,image/png,image/webp' : 'video/mp4'" (change)="replaceMedia(item, $event)" />
+                      @if (item.mediaType === 'Video') {
+                        <button matButton type="button" (click)="posterPicker.click()">Poster</button>
+                        <input #posterPicker type="file" accept="image/jpeg,image/png,image/webp" (change)="replacePoster(item, $event)" />
+                      }
+                      <button matButton type="button" (click)="removeMedia(item)">Delete</button>
+                    </div>
+                  </article>
+                }
+              </div>
+            } @else { <p class="empty-state">No uploaded media yet. A placeholder is shown where no primary image is available.</p> }
+          </section>
+
           @if (errorMessage()) {
             <p class="error-message" role="alert">{{ errorMessage() }}</p>
           }
@@ -182,6 +216,9 @@ export class ProductEditorPage implements OnInit {
   protected readonly barcode = signal('');
   protected readonly saving = signal(false);
   protected readonly errorMessage = signal('');
+  protected readonly media = signal<ProductMediaItem[]>([]);
+  protected readonly pendingFiles = signal<File[]>([]);
+  protected readonly uploadProgress = signal<number | null>(null);
   private existingPrimaryImageUrl = '';
 
   protected readonly form = this.formBuilder.nonNullable.group({
@@ -283,6 +320,7 @@ export class ProductEditorPage implements OnInit {
     saveRequest
       .pipe(
         switchMap((product) => this.saveImageIfChanged(product, value.imageUrl)),
+        switchMap((product) => this.uploadQueued(product.id).pipe(map(() => product))),
         finalize(() => this.saving.set(false))
       )
       .subscribe({
@@ -319,6 +357,7 @@ export class ProductEditorPage implements OnInit {
           imageUrl: this.existingPrimaryImageUrl
         });
         this.loadDependentLookups(product);
+        this.loadMedia(id);
       },
       error: (error) => this.errorMessage.set(this.describeError(error))
     });
@@ -337,6 +376,94 @@ export class ProductEditorPage implements OnInit {
         this.form.controls.productModelId.setValue(product.productModelId ?? '');
       });
     }
+  }
+
+  protected selectMedia(event: Event): void {
+    const files = Array.from((event.target as HTMLInputElement).files ?? []);
+    (event.target as HTMLInputElement).value = '';
+    if (!files.length) return;
+    if (!this.productId) {
+      this.pendingFiles.update(current => [...current, ...files]);
+      return;
+    }
+    this.uploadFiles(this.productId, files);
+  }
+
+  protected replaceMedia(media: ProductMediaItem, event: Event): void {
+    const file = (event.target as HTMLInputElement).files?.[0];
+    (event.target as HTMLInputElement).value = '';
+    if (!file || !this.productId) return;
+    this.uploadProgress.set(0);
+    this.api.replaceMedia(this.productId, media.id, file).subscribe({
+      next: eventValue => {
+        if (eventValue.type === HttpEventType.UploadProgress && eventValue.total) this.uploadProgress.set(Math.round(eventValue.loaded / eventValue.total * 100));
+        if (eventValue.type === HttpEventType.Response) { this.uploadProgress.set(null); this.loadMedia(this.productId!); }
+      }, error: error => { this.uploadProgress.set(null); this.errorMessage.set(this.describeError(error)); }
+    });
+  }
+
+  protected replacePoster(media: ProductMediaItem, event: Event): void {
+    const file = (event.target as HTMLInputElement).files?.[0];
+    if (!file || !this.productId) return;
+    this.uploadProgress.set(0);
+    this.api.replaceVideoPoster(this.productId, media.id, file).subscribe({
+      next: event => {
+        if (event.type === HttpEventType.UploadProgress && event.total) {
+          this.uploadProgress.set(Math.round(event.loaded * 100 / event.total));
+        }
+        if (event.type === HttpEventType.Response && event.body?.data) {
+          const updatedMedia = event.body.data;
+          this.media.update(items => items.map(item => item.id === media.id ? updatedMedia : item));
+          this.uploadProgress.set(null);
+        }
+      },
+      error: error => { this.errorMessage.set(this.describeError(error)); this.uploadProgress.set(null); }
+    });
+  }
+
+  protected removeMedia(media: ProductMediaItem): void {
+    if (!this.productId || !globalThis.confirm?.('Delete this media file?')) return;
+    this.api.deleteMedia(this.productId, media.id).subscribe({ next: () => this.loadMedia(this.productId!), error: error => this.errorMessage.set(this.describeError(error)) });
+  }
+
+  protected makePrimary(media: ProductMediaItem): void {
+    if (!this.productId) return;
+    this.api.setPrimaryMedia(this.productId, media.id).subscribe({ next: () => this.loadMedia(this.productId!), error: error => this.errorMessage.set(this.describeError(error)) });
+  }
+
+  protected moveMedia(index: number, direction: number): void {
+    if (!this.productId) return;
+    const reordered = [...this.media()];
+    const target = index + direction;
+    if (target < 0 || target >= reordered.length) return;
+    [reordered[index], reordered[target]] = [reordered[target], reordered[index]];
+    this.api.reorderMedia(this.productId, reordered.map(item => item.id)).subscribe({ next: media => this.media.set(media), error: error => this.errorMessage.set(this.describeError(error)) });
+  }
+
+  protected formatFileSize(bytes: number): string { return bytes >= 1024 * 1024 ? `${(bytes / 1024 / 1024).toFixed(1)} MB` : `${Math.max(1, Math.round(bytes / 1024))} KB`; }
+
+  private loadMedia(id: string): void { this.api.getMedia(id).subscribe({ next: media => this.media.set(media), error: error => this.errorMessage.set(this.describeError(error)) }); }
+
+  private uploadFiles(productId: string, files: File[]): void {
+    let completed = 0;
+    this.uploadProgress.set(0);
+    const uploadNext = (index: number): void => {
+      if (index >= files.length) { this.uploadProgress.set(null); this.loadMedia(productId); return; }
+      this.api.uploadMedia(productId, files[index]).subscribe({
+        next: eventValue => { if (eventValue.type === HttpEventType.UploadProgress && eventValue.total) this.uploadProgress.set(Math.round((completed + eventValue.loaded / eventValue.total) / files.length * 100)); if (eventValue.type === HttpEventType.Response) { completed++; uploadNext(index + 1); } },
+        error: error => { this.uploadProgress.set(null); this.errorMessage.set(this.describeError(error)); }
+      });
+    };
+    uploadNext(0);
+  }
+
+  private uploadQueued(productId: string): Observable<void> {
+    const files = this.pendingFiles();
+    if (!files.length) return of(void 0);
+    return forkJoin(files.map(file => this.api.uploadMedia(productId, file).pipe(
+      filter(eventValue => eventValue.type === HttpEventType.Response),
+      map(() => void 0)
+    ))).pipe(map(() => { this.pendingFiles.set([]); return void 0; }));
   }
 
   private saveImageIfChanged(

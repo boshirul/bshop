@@ -63,8 +63,15 @@ import { ProductListItem } from './product.models';
             <ng-container matColumnDef="product">
               <th mat-header-cell *matHeaderCellDef>Product</th>
               <td mat-cell *matCellDef="let product">
-                <strong>{{ product.name }}</strong>
-                <div class="code">{{ product.productCode }} · {{ product.barcode }}</div>
+                <div class="product-cell">
+                  <div class="product-thumbnail">
+                    @if (product.imageUrl) {
+                      <img [src]="product.imageUrl" [alt]="product.name" (error)="showImagePlaceholder($event)" />
+                      <span class="product-thumbnail__placeholder" aria-hidden="true">▧</span>
+                    } @else { <span aria-hidden="true">▧</span> }
+                  </div>
+                  <div><strong>{{ product.name }}</strong><div class="code">{{ product.productCode }} · {{ product.barcode }}</div></div>
+                </div>
               </td>
             </ng-container>
 
@@ -222,6 +229,10 @@ export class ProductListPage implements OnInit {
       next: () => this.load(this.page()),
       error: (error) => this.errorMessage.set(this.describeError(error))
     });
+  }
+
+  protected showImagePlaceholder(event: Event): void {
+    (event.currentTarget as HTMLImageElement).hidden = true;
   }
 
   private describeError(error: unknown): string {

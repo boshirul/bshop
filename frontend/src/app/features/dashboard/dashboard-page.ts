@@ -34,49 +34,49 @@ import { DashboardSummary, InventoryReportItem, SalesReportItem } from '../repor
         <div class="status-grid">
           <mat-card class="kpi-card sales" appearance="outlined">
             <mat-card-content>
-              <span class="kpi-icon" aria-hidden="true">⌁</span><span>Today sales</span>
+              <svg class="kpi-icon" aria-hidden="true" focusable="false" viewBox="0 0 24 24"><path d="M3 5h2l2.2 10.1a2 2 0 0 0 2 1.6h7.9a2 2 0 0 0 1.9-1.5L20.5 8H7"/><circle cx="10" cy="20" r="1"/><circle cx="17" cy="20" r="1"/></svg><span>Today sales</span>
               <strong>{{ value.todaySales | currency:'BDT':'symbol-narrow' }}</strong>
             </mat-card-content>
           </mat-card>
           <mat-card class="kpi-card sales" appearance="outlined">
             <mat-card-content>
-              <span class="kpi-icon" aria-hidden="true">▥</span><span>Month sales</span>
+              <svg class="kpi-icon" aria-hidden="true" focusable="false" viewBox="0 0 24 24"><path d="M4 19V10"/><path d="M10 19V5"/><path d="M16 19v-7"/><path d="M22 19H2"/></svg><span>Month sales</span>
               <strong>{{ value.monthSales | currency:'BDT':'symbol-narrow' }}</strong>
             </mat-card-content>
           </mat-card>
           <mat-card class="kpi-card due" appearance="outlined">
             <mat-card-content>
-              <span class="kpi-icon" aria-hidden="true">◎</span><span>Customer due</span>
+              <svg class="kpi-icon" aria-hidden="true" focusable="false" viewBox="0 0 24 24"><circle cx="9" cy="8" r="3"/><path d="M3 20a6 6 0 0 1 12 0"/><path d="M17 8h4"/><path d="M19 6v4"/><path d="M17 15h4"/></svg><span>Customer due</span>
               <strong>{{ value.customerDue | currency:'BDT':'symbol-narrow' }}</strong>
             </mat-card-content>
           </mat-card>
           <mat-card class="kpi-card stock" appearance="outlined">
             <mat-card-content>
-              <span class="kpi-icon" aria-hidden="true">▣</span><span>Stock value</span>
+              <svg class="kpi-icon" aria-hidden="true" focusable="false" viewBox="0 0 24 24"><ellipse cx="12" cy="5" rx="7" ry="3"/><path d="M5 5v7c0 1.7 3.1 3 7 3s7-1.3 7-3V5"/><path d="M5 12v7c0 1.7 3.1 3 7 3s7-1.3 7-3v-7"/></svg><span>Stock value</span>
               <strong>{{ value.stockValue | currency:'BDT':'symbol-narrow' }}</strong>
             </mat-card-content>
           </mat-card>
           <mat-card class="kpi-card alert" appearance="outlined">
             <mat-card-content>
-              <span class="kpi-icon" aria-hidden="true">!</span><span>Low-stock products</span>
+              <svg class="kpi-icon" aria-hidden="true" focusable="false" viewBox="0 0 24 24"><path d="M12 3 2.8 19a1.4 1.4 0 0 0 1.2 2h16a1.4 1.4 0 0 0 1.2-2Z"/><path d="M12 9v4"/><path d="M12 17h.01"/></svg><span>Low-stock products</span>
               <strong>{{ value.lowStockProducts }}</strong>
             </mat-card-content>
           </mat-card>
           <mat-card class="kpi-card orders" appearance="outlined">
             <mat-card-content>
-              <span class="kpi-icon" aria-hidden="true">⌘</span><span>Pending online orders</span>
+              <svg class="kpi-icon" aria-hidden="true" focusable="false" viewBox="0 0 24 24"><path d="M4 4h2l2 10h9.5l2-7H7"/><circle cx="10" cy="19" r="1"/><circle cx="17" cy="19" r="1"/><path d="M16 5v4"/><path d="M14 7h4"/></svg><span>Pending online orders</span>
               <strong>{{ value.pendingOnlineOrders }}</strong>
             </mat-card-content>
           </mat-card>
           <mat-card class="kpi-card returns" appearance="outlined">
             <mat-card-content>
-              <span class="kpi-icon" aria-hidden="true">↶</span><span>Pending returns</span>
+              <svg class="kpi-icon" aria-hidden="true" focusable="false" viewBox="0 0 24 24"><path d="M9 8 5 12l4 4"/><path d="M5 12h8a6 6 0 1 1-6 6"/></svg><span>Pending returns</span>
               <strong>{{ value.pendingReturns }}</strong>
             </mat-card-content>
           </mat-card>
           <mat-card class="kpi-card warranty" appearance="outlined">
             <mat-card-content>
-              <span class="kpi-icon" aria-hidden="true">◇</span><span>Pending warranty claims</span>
+              <svg class="kpi-icon" aria-hidden="true" focusable="false" viewBox="0 0 24 24"><path d="M12 3 19 6v5c0 4.6-3 7.8-7 10-4-2.2-7-5.4-7-10V6Z"/><path d="m9 12 2 2 4-4"/></svg><span>Pending warranty claims</span>
               <strong>{{ value.pendingWarrantyClaims }}</strong>
             </mat-card-content>
           </mat-card>
@@ -159,7 +159,7 @@ import { DashboardSummary, InventoryReportItem, SalesReportItem } from '../repor
     .kpi-card mat-card-content { display: grid; grid-template-columns: auto 1fr; align-items: center; column-gap: .8rem; padding: 1rem; }
     .kpi-card mat-card-content > span:not(.kpi-icon) { color: var(--bshop-color-text-muted); font-size: .82rem; margin: 0; }
     .kpi-card strong { color: var(--bshop-color-text); font-size: 1.42rem; grid-column: 2; margin-top: -.35rem; }
-    .kpi-icon { align-items: center; background: color-mix(in srgb, var(--bshop-color-primary), transparent 84%); border: 1px solid color-mix(in srgb, var(--bshop-color-primary), transparent 60%); border-radius: var(--bshop-radius-md); color: color-mix(in srgb, var(--bshop-color-primary), var(--bshop-color-text) 35%); display: inline-flex; font-size: 1.25rem; grid-row: span 2; height: 2.75rem; justify-content: center; width: 2.75rem; }
+    .kpi-icon { background: color-mix(in srgb, var(--bshop-color-primary), transparent 84%); border: 1px solid color-mix(in srgb, var(--bshop-color-primary), transparent 60%); border-radius: var(--bshop-radius-md); color: color-mix(in srgb, var(--bshop-color-primary), var(--bshop-color-text) 35%); fill: none; grid-row: span 2; height: 2.75rem; padding: .65rem; stroke: currentColor; stroke-linecap: round; stroke-linejoin: round; stroke-width: 1.8; width: 2.75rem; }
     .kpi-card.alert .kpi-icon { color: var(--bshop-color-warning); }.kpi-card.due .kpi-icon { color: var(--bshop-color-danger); }.kpi-card.warranty .kpi-icon { color: var(--bshop-color-success); }
     .dashboard-loading { align-items: center; color: var(--bshop-color-text-muted); display: flex; gap: .75rem; margin: 1rem 0; }.dashboard-loading .bshop-loading::before { margin: 0; }
     .error-message { background: var(--bshop-color-danger-bg); border-color: color-mix(in srgb, var(--bshop-color-danger), transparent 62%); color: color-mix(in srgb, var(--bshop-color-danger), var(--bshop-color-text) 72%); }

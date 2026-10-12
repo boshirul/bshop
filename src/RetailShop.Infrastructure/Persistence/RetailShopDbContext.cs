@@ -47,6 +47,8 @@ public sealed class RetailShopDbContext(DbContextOptions<RetailShopDbContext> op
 
     public DbSet<ProductImage> ProductImages => Set<ProductImage>();
 
+    public DbSet<ProductMedia> ProductMedia => Set<ProductMedia>();
+
     public DbSet<ProductBarcode> ProductBarcodes => Set<ProductBarcode>();
 
     public DbSet<Customer> Customers => Set<Customer>();
@@ -339,6 +341,22 @@ public sealed class RetailShopDbContext(DbContextOptions<RetailShopDbContext> op
                 .HasForeignKey(image => image.ProductId)
                 .OnDelete(DeleteBehavior.Cascade);
             entity.HasQueryFilter(image => !image.IsDeleted);
+        });
+
+        modelBuilder.Entity<ProductMedia>(entity =>
+        {
+            entity.ToTable("ProductMedia");
+            entity.Property(media => media.MediaType).HasConversion<string>().HasMaxLength(20);
+            entity.Property(media => media.StorageKey).HasMaxLength(500).IsRequired();
+            entity.Property(media => media.ThumbnailStorageKey).HasMaxLength(500);
+            entity.Property(media => media.ContentType).HasMaxLength(100).IsRequired();
+            entity.HasIndex(media => new { media.ProductId, media.MediaType, media.SortOrder });
+            entity.HasIndex(media => new { media.ProductId, media.IsPrimary });
+            entity.HasOne(media => media.Product)
+                .WithMany(product => product.Media)
+                .HasForeignKey(media => media.ProductId)
+                .OnDelete(DeleteBehavior.Cascade);
+            entity.HasQueryFilter(media => !media.IsDeleted);
         });
 
         modelBuilder.Entity<ProductBarcode>(entity =>

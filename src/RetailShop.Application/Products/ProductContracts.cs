@@ -94,6 +94,20 @@ public sealed record ProductImageItem(
     string? AltText,
     bool IsPrimary);
 
+public sealed record ProductMediaItem(
+    Guid Id,
+    string MediaType,
+    string Url,
+    string? ThumbnailUrl,
+    string ContentType,
+    long FileSize,
+    bool IsPrimary,
+    int SortOrder,
+    DateTimeOffset CreatedAt);
+
+public sealed record ReorderProductMediaRequest(
+    IReadOnlyCollection<Guid> MediaIds);
+
 public sealed record ProductDetail(
     Guid Id,
     string ProductCode,
@@ -247,4 +261,53 @@ public interface IProductService
         Guid imageId,
         Guid performedBy,
         CancellationToken cancellationToken);
+    Task<IReadOnlyCollection<ProductMediaItem>> GetMediaAsync(
+        Guid productId,
+        CancellationToken cancellationToken);
+    Task<OperationResult<ProductMediaItem>> AddMediaAsync(
+        Guid productId,
+        ProductMediaUpload upload,
+        Guid performedBy,
+        CancellationToken cancellationToken);
+    Task<OperationResult<ProductMediaItem>> ReplaceMediaAsync(
+        Guid productId,
+        Guid mediaId,
+        ProductMediaUpload upload,
+        Guid performedBy,
+        CancellationToken cancellationToken);
+    Task<OperationResult<ProductMediaItem>> ReplaceVideoPosterAsync(
+        Guid productId,
+        Guid mediaId,
+        ProductMediaUpload upload,
+        Guid performedBy,
+        CancellationToken cancellationToken);
+    Task<OperationResult<bool>> DeleteMediaAsync(
+        Guid productId,
+        Guid mediaId,
+        Guid performedBy,
+        CancellationToken cancellationToken);
+    Task<OperationResult<bool>> SetPrimaryMediaAsync(
+        Guid productId,
+        Guid mediaId,
+        Guid performedBy,
+        CancellationToken cancellationToken);
+    Task<OperationResult<IReadOnlyCollection<ProductMediaItem>>> ReorderMediaAsync(
+        Guid productId,
+        ReorderProductMediaRequest request,
+        Guid performedBy,
+        CancellationToken cancellationToken);
+    Task<OperationResult<ProductMediaFile>> GetMediaFileAsync(
+        Guid productId,
+        Guid mediaId,
+        bool thumbnail,
+        bool publicOnly,
+        CancellationToken cancellationToken);
 }
+
+public sealed record ProductMediaUpload(
+    Stream Content,
+    string FileName,
+    string ContentType,
+    long Length);
+
+public sealed record ProductMediaFile(string FilePath, string ContentType);

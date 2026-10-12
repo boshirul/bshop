@@ -137,4 +137,96 @@ public sealed class ProductsController(IProductService service) : ControllerBase
             ? Ok(ApiResponse<bool>.Success(true))
             : BadRequest(ApiResponse<bool>.Failure(result.Errors));
     }
+
+    [HttpGet("{id:guid}/media")]
+    [AllowAnonymous]
+    public async Task<ActionResult<ApiResponse<IReadOnlyCollection<ProductMediaItem>>>> GetMedia(
+        Guid id,
+        CancellationToken cancellationToken) =>
+        Ok(ApiResponse<IReadOnlyCollection<ProductMediaItem>>.Success(
+            await service.GetMediaAsync(id, cancellationToken)));
+
+    [HttpPost("{id:guid}/media")]
+    [Authorize(Policy = Permissions.Products.Manage)]
+    [RequestSizeLimit(110 * 1024 * 1024)]
+    public async Task<ActionResult<ApiResponse<ProductMediaItem>>> UploadMedia(
+        Guid id,
+        [FromForm] IFormFile file,
+        CancellationToken cancellationToken)
+    {
+        await using var stream = file.OpenReadStream();
+        var result = await service.AddMediaAsync(id,
+            new ProductMediaUpload(stream, file.FileName, file.ContentType, file.Length),
+            User.GetRequiredUserId(), cancellationToken);
+        return result.Succeeded ? Ok(ApiResponse<ProductMediaItem>.Success(result.Value!))
+            : BadRequest(ApiResponse<ProductMediaItem>.Failure(result.Errors));
+    }
+
+    [HttpPut("{productId:guid}/media/{mediaId:guid}")]
+    [Authorize(Policy = Permissions.Products.Manage)]
+    [RequestSizeLimit(110 * 1024 * 1024)]
+    public async Task<ActionResult<ApiResponse<ProductMediaItem>>> ReplaceMedia(
+        Guid productId, Guid mediaId, [FromForm] IFormFile file, CancellationToken cancellationToken)
+    {
+        await using var stream = file.OpenReadStream();
+        var result = await service.ReplaceMediaAsync(productId, mediaId,
+            new ProductMediaUpload(stream, file.FileName, file.ContentType, file.Length),
+            User.GetRequiredUserId(), cancellationToken);
+        return result.Succeeded ? Ok(ApiResponse<ProductMediaItem>.Success(result.Value!))
+            : BadRequest(ApiResponse<ProductMediaItem>.Failure(result.Errors));
+    }
+
+    [HttpPut("{productId:guid}/media/{mediaId:guid}/poster")]
+    [Authorize(Policy = Permissions.Products.Manage)]
+    [RequestSizeLimit(6 * 1024 * 1024)]
+    public async Task<ActionResult<ApiResponse<ProductMediaItem>>> ReplaceVideoPoster(
+        Guid productId, Guid mediaId, [FromForm] IFormFile file, CancellationToken cancellationToken)
+    {
+        await using var stream = file.OpenReadStream();
+        var result = await service.ReplaceVideoPosterAsync(productId, mediaId,
+            new ProductMediaUpload(stream, file.FileName, file.ContentType, file.Length),
+            User.GetRequiredUserId(), cancellationToken);
+        return result.Succeeded ? Ok(ApiResponse<ProductMediaItem>.Success(result.Value!))
+            : BadRequest(ApiResponse<ProductMediaItem>.Failure(result.Errors));
+    }
+
+    [HttpDelete("{productId:guid}/media/{mediaId:guid}")]
+    [Authorize(Policy = Permissions.Products.Manage)]
+    public async Task<ActionResult<ApiResponse<bool>>> DeleteMedia(
+        Guid productId, Guid mediaId, CancellationToken cancellationToken)
+    {
+        var result = await service.DeleteMediaAsync(productId, mediaId, User.GetRequiredUserId(), cancellationToken);
+        return result.Succeeded ? Ok(ApiResponse<bool>.Success(true))
+            : BadRequest(ApiResponse<bool>.Failure(result.Errors));
+    }
+
+    [HttpPost("{productId:guid}/media/{mediaId:guid}/primary")]
+    [Authorize(Policy = Permissions.Products.Manage)]
+    public async Task<ActionResult<ApiResponse<bool>>> SetPrimaryMedia(
+        Guid productId, Guid mediaId, CancellationToken cancellationToken)
+    {
+        var result = await service.SetPrimaryMediaAsync(productId, mediaId, User.GetRequiredUserId(), cancellationToken);
+        return result.Succeeded ? Ok(ApiResponse<bool>.Success(true))
+            : BadRequest(ApiResponse<bool>.Failure(result.Errors));
+    }
+
+    [HttpPut("{productId:guid}/media/order")]
+    [Authorize(Policy = Permissions.Products.Manage)]
+    public async Task<ActionResult<ApiResponse<IReadOnlyCollection<ProductMediaItem>>>> ReorderMedia(
+        Guid productId, ReorderProductMediaRequest request, CancellationToken cancellationToken)
+    {
+        var result = await service.ReorderMediaAsync(productId, request, User.GetRequiredUserId(), cancellationToken);
+        return result.Succeeded ? Ok(ApiResponse<IReadOnlyCollection<ProductMediaItem>>.Success(result.Value!))
+            : BadRequest(ApiResponse<IReadOnlyCollection<ProductMediaItem>>.Failure(result.Errors));
+    }
+
+    [HttpGet("{productId:guid}/media/{mediaId:guid}/content")]
+    [AllowAnonymous]
+    public async Task<IActionResult> MediaContent(
+        Guid productId, Guid mediaId, [FromQuery] bool thumbnail, CancellationToken cancellationToken)
+    {
+        var result = await service.GetMediaFileAsync(productId, mediaId, thumbnail, false, cancellationToken);
+        if (!result.Succeeded) return NotFound();
+        return PhysicalFile(result.Value!.FilePath, result.Value.ContentType, enableRangeProcessing: true);
+    }
 }

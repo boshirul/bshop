@@ -49,7 +49,10 @@ internal sealed class OnlineOrderService(
                 item.Brand == null ? null : item.Brand.Name,
                 item.Unit.Symbol,
                 item.SalePrice,
-                item.Images
+                item.Media
+                    .Where(media => media.MediaType == RetailShop.Domain.Products.ProductMediaType.Image && media.IsPrimary)
+                    .Select(media => "/api/products/" + item.Id + "/media/" + media.Id + "/content")
+                    .FirstOrDefault() ?? item.Images
                     .Where(image => image.IsPrimary)
                     .Select(image => image.Url)
                     .FirstOrDefault(),
@@ -80,7 +83,10 @@ internal sealed class OnlineOrderService(
                 product.Unit.Symbol,
                 product.Description,
                 product.SalePrice,
-                product.Images
+                product.Media
+                    .Where(media => media.MediaType == RetailShop.Domain.Products.ProductMediaType.Image && media.IsPrimary)
+                    .Select(media => "/api/products/" + product.Id + "/media/" + media.Id + "/content")
+                    .FirstOrDefault() ?? product.Images
                     .Where(image => image.IsPrimary)
                     .Select(image => image.Url)
                     .FirstOrDefault(),

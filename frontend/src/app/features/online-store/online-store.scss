@@ -6,7 +6,7 @@
   gap: 1rem;
 }
 .eyebrow {
-  color: #64748b;
+  color: var(--bshop-color-text-muted);
   font-size: .75rem;
   font-weight: 700;
   letter-spacing: .12em;
@@ -26,19 +26,22 @@ h1, h2 { margin-block: 0 .35rem; }
 .product-card { display: grid; gap: .7rem; }
 .product-image {
   align-items: center;
-  background: #f1f5f9;
+  background: var(--bshop-color-bg);
+  border: 1px solid var(--bshop-color-border);
   border-radius: .75rem;
-  color: #64748b;
+  color: var(--bshop-color-text-muted);
   display: flex;
   min-height: 120px;
   justify-content: center;
   overflow: hidden;
 }
 .product-image img { height: 100%; object-fit: cover; width: 100%; }
-.code { color: #64748b; font-size: .82rem; }
+.product-image img:not([hidden]) + .product-image__placeholder { display: none; }
+.product-image img[hidden] { display: none; }
+.code { color: var(--bshop-color-text-muted); font-size: .82rem; }
 .cart-line {
   align-items: center;
-  border-bottom: 1px solid #e2e8f0;
+  border-bottom: 1px solid var(--bshop-color-border);
   display: grid;
   gap: .75rem;
   grid-template-columns: 1fr auto auto auto;
@@ -53,18 +56,20 @@ h1, h2 { margin-block: 0 .35rem; }
   justify-content: flex-end;
   margin-block-start: 1rem;
 }
+
+.media-viewer { margin-block: 1rem; }.media-viewer__header { align-items: center; display: flex; justify-content: space-between; }.media-viewer__header h2 { margin: 0; }.media-viewer__gallery { display: grid; gap: .75rem; grid-template-columns: repeat(auto-fit, minmax(14rem, 1fr)); margin-block-start: 1rem; }.media-viewer__gallery :is(img, video) { background: var(--bshop-color-bg); border: 1px solid var(--bshop-color-border); border-radius: var(--bshop-radius-md); max-height: 26rem; object-fit: contain; width: 100%; }
 .error-message {
-  background: #fef2f2;
-  border: 1px solid #fecaca;
+  background: var(--bshop-color-danger-bg);
+  border: 1px solid color-mix(in srgb, var(--bshop-color-danger), transparent 62%);
   border-radius: .6rem;
-  color: #b42318;
+  color: var(--bshop-color-danger);
   padding: .75rem;
 }
 .success-message {
-  background: #ecfdf3;
-  border: 1px solid #bbf7d0;
+  background: var(--bshop-color-success-bg);
+  border: 1px solid color-mix(in srgb, var(--bshop-color-success), transparent 62%);
   border-radius: .6rem;
-  color: #067647;
+  color: var(--bshop-color-success);
   padding: .75rem;
 }
 mat-form-field { width: 100%; }
