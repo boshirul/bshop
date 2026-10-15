@@ -1,5 +1,6 @@
 using System.ComponentModel.DataAnnotations;
 using RetailShop.Application.Common;
+using RetailShop.Domain.Settings;
 
 namespace RetailShop.Application.Settings;
 
@@ -36,6 +37,18 @@ public sealed record SaveInvoiceSettingsRequest(
     [param: MaxLength(1000)] string? ReturnPolicy,
     bool ShowTaxDetails,
     bool ShowQrCode);
+
+public sealed record InvoiceTemplateSettingsResponse(
+    InvoicePrintFormat DefaultFormat, bool A4Enabled, bool ShortEnabled,
+    bool ShowLogo, InvoiceLogoPlacement LogoPlacement, string? HeaderText,
+    string? FooterText, string AccentColor, int ThermalMarginMm, int Version);
+
+public sealed record SaveInvoiceTemplateSettingsRequest(
+    InvoicePrintFormat DefaultFormat, bool A4Enabled, bool ShortEnabled,
+    bool ShowLogo, InvoiceLogoPlacement LogoPlacement,
+    [param: MaxLength(500)] string? HeaderText, [param: MaxLength(500)] string? FooterText,
+    [param: RegularExpression("^#[0-9A-Fa-f]{6}$")] string AccentColor,
+    [param: Range(0, 10)] int ThermalMarginMm);
 
 public sealed record TaxSettingsResponse(
     string TaxName,
@@ -86,6 +99,8 @@ public interface ISettingsService
         SaveInvoiceSettingsRequest request,
         Guid performedBy,
         CancellationToken cancellationToken);
+    Task<InvoiceTemplateSettingsResponse> GetInvoiceTemplateAsync(CancellationToken cancellationToken);
+    Task<OperationResult<InvoiceTemplateSettingsResponse>> SaveInvoiceTemplateAsync(SaveInvoiceTemplateSettingsRequest request, Guid performedBy, CancellationToken cancellationToken);
     Task<TaxSettingsResponse> GetTaxAsync(CancellationToken cancellationToken);
     Task<TaxSettingsResponse> SaveTaxAsync(
         SaveTaxSettingsRequest request,

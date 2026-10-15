@@ -1,11 +1,14 @@
-import { Component, HostListener, inject, signal } from '@angular/core';
+import { HttpClient } from '@angular/common/http';
+import { Component, effect, HostListener, inject, OnInit, signal } from '@angular/core';
 import { MatButtonModule } from '@angular/material/button';
 import { MatListModule } from '@angular/material/list';
 import { MatSidenavModule } from '@angular/material/sidenav';
 import { MatToolbarModule } from '@angular/material/toolbar';
+import { MatMenuModule } from '@angular/material/menu';
 import { Router, RouterLink, RouterLinkActive, RouterOutlet } from '@angular/router';
 import { AuthService } from '../core/auth/auth.service';
 import { permissions } from '../core/auth/permissions';
+import { API_BASE_URL } from '../core/http/api-base-url.token';
 
 interface NavigationItem {
   label: string;
@@ -23,16 +26,27 @@ interface NavigationItem {
     MatButtonModule,
     MatListModule,
     MatSidenavModule,
-    MatToolbarModule
+    MatToolbarModule,
+    MatMenuModule
   ],
   templateUrl: './admin-layout.html'
 })
-export class AdminLayout {
+export class AdminLayout implements OnInit {
   protected readonly auth = inject(AuthService);
   private readonly router = inject(Router);
+  private readonly http = inject(HttpClient);
+  private readonly apiBaseUrl = inject(API_BASE_URL);
+  protected readonly avatarUrl = signal<string | null>(null);
   protected readonly sidebarCollapsed = signal(false);
   protected readonly isMobile = signal(window.innerWidth <= 760);
   protected readonly mobileDrawerOpen = signal(false);
+
+  constructor() {
+    effect(() => {
+      this.auth.avatarVersion();
+      if (this.auth.currentUser()?.avatarUrl) this.loadAvatar();
+    });
+  }
 
   protected readonly navigation: readonly NavigationItem[] = [
     { label: 'Dashboard', route: '/dashboard', icon: '◫' },
@@ -51,6 +65,7 @@ export class AdminLayout {
       permission: permissions.suppliers.view
     },
     { label: 'POS Sales', route: '/sales-pos', icon: '⌁', permission: permissions.sales.view },
+    { label: 'Expenses', route: '/expenses', icon: '¤', permission: permissions.expenses.view },
     {
       label: 'Quotations',
       route: '/quotations',
@@ -104,6 +119,16 @@ export class AdminLayout {
       permission: permissions.administration.viewAuditLog
     }
   ];
+
+  ngOnInit(): void {
+    if (this.auth.currentUser()?.avatarUrl) this.loadAvatar();
+  }
+
+  private loadAvatar(): void {
+    this.http.get(`${this.apiBaseUrl}/auth/profile/photo/content`, { responseType: 'blob' }).subscribe({
+      next: blob => this.avatarUrl.set(URL.createObjectURL(blob))
+    });
+  }
 
   @HostListener('window:resize')
   protected updateViewportState(): void {

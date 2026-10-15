@@ -21,6 +21,12 @@ export interface InvoiceSettings {
   showQrCode: boolean;
 }
 
+export interface InvoiceTemplateSettings {
+  defaultFormat: 'A4' | 'Short'; a4Enabled: boolean; shortEnabled: boolean;
+  showLogo: boolean; logoPlacement: 'Left' | 'Center'; headerText: string | null;
+  footerText: string | null; accentColor: string; thermalMarginMm: number; version: number;
+}
+
 export interface TaxSettings {
   taxName: string;
   defaultRate: number;

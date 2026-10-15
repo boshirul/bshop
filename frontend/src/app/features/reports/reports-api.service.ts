@@ -43,6 +43,16 @@ export class ReportsApiService {
     return this.get('reports/operations');
   }
 
+  catalogue(): Observable<import('./reports.models').ManagementReportCatalogueItem[]> { return this.get('reports/catalogue'); }
+
+  management(kind: string, params: HttpParams): Observable<import('./reports.models').ManagementReportPreview> {
+    return this.get(`reports/management/${kind}`, params);
+  }
+
+  export(kind: string, format: 'pdf' | 'xlsx', params: HttpParams): Observable<Blob> {
+    return this.http.get(`${this.base}/reports/management/${kind}/export`, { params: params.set('format', format), responseType: 'blob' });
+  }
+
   private range(from: string, to: string): HttpParams {
     return new HttpParams().set('from', from).set('to', to);
   }

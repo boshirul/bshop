@@ -4,15 +4,17 @@ import { Component, inject, OnInit, signal } from '@angular/core';
 import { MatButtonModule } from '@angular/material/button';
 import { MatCardModule } from '@angular/material/card';
 import { MatTableModule } from '@angular/material/table';
+import { MatSelectModule } from '@angular/material/select';
 import { ActivatedRoute, RouterLink } from '@angular/router';
 import { AuthService } from '../../core/auth/auth.service';
 import { permissions } from '../../core/auth/permissions';
 import { SalesApiService } from './sales-api.service';
+import { SettingsApiService } from '../settings/settings-api.service';
 import { SaleDetail } from './sales.models';
 
 @Component({
   selector: 'app-sale-detail-page',
-  imports: [CurrencyPipe, DatePipe, RouterLink, MatButtonModule, MatCardModule, MatTableModule],
+  imports: [CurrencyPipe, DatePipe, RouterLink, MatButtonModule, MatCardModule, MatTableModule, MatSelectModule],
   template: `
     @if(sale();as invoice){
       <div class="screen-invoice">
@@ -28,7 +30,10 @@ import { SaleDetail } from './sales.models';
           @if(canCancel&&invoice.status!=='Cancelled'){
             <button matButton type="button" (click)="cancel()">Cancel sale</button>
           }
-          <button matButton type="button" (click)="print()">Print invoice</button>
+          <mat-select class="invoice-format" [value]="printFormat()" (selectionChange)="printFormat.set($event.value)" aria-label="Invoice print format">
+            @if(a4Enabled()){<mat-option value="A4">A4 invoice</mat-option>} @if(shortEnabled()){<mat-option value="Short">80 mm receipt</mat-option>}
+          </mat-select>
+          <button matButton type="button" (click)="print()">Preview & print</button>
         </div>
       </header>
       @if(successMessage()){<p class="success-message">{{successMessage()}}</p>}
@@ -69,14 +74,15 @@ import { SaleDetail } from './sales.models';
 
       <section class="print-invoice" aria-hidden="true">
         <header class="print-invoice__header">
-          <div><p class="print-invoice__brand">BShop</p><p class="print-invoice__copy">Customer copy</p></div>
+          <div>@if(showLogo() && shopLogo()){<img class="print-invoice__logo" [src]="shopLogo()!" alt="" />}<p class="print-invoice__brand">{{shopName()}}</p><p class="print-invoice__copy">Customer copy</p></div>
           <div class="print-invoice__meta"><strong>Sales invoice</strong><span>{{invoice.invoiceNumber}}</span><span>{{invoice.saleDate|date:'mediumDate'}}</span></div>
         </header>
 
-        <section class="print-invoice__customer">
-          <span>Bill to</span><strong>{{invoice.customerName || 'Walk-in customer'}}</strong>
+        @if(invoice.customerId){<section class="print-invoice__customer">
+          <span>Bill to</span><strong>{{invoice.customerName}}</strong>
           @if(invoice.customerPhone){<small>{{invoice.customerPhone}}</small>}
-        </section>
+        </section>}
+        @if(headerText()){<p class="print-invoice__notes">{{headerText()}}</p>}
 
         <table class="print-invoice__items">
           <thead><tr><th>Product</th><th class="print-number">Qty.</th><th class="print-number">Unit price</th><th class="print-number">Discount</th><th class="print-number">Amount</th></tr></thead>
@@ -92,8 +98,15 @@ import { SaleDetail } from './sales.models';
           </div>
           <dl class="print-invoice__totals"><div><dt>Subtotal</dt><dd>{{invoice.subtotal|currency:'BDT':'symbol-narrow'}}</dd></div><div><dt>Discount</dt><dd>{{invoice.discountAmount|currency:'BDT':'symbol-narrow'}}</dd></div><div><dt>VAT</dt><dd>{{invoice.vatAmount|currency:'BDT':'symbol-narrow'}}</dd></div><div class="print-invoice__grand"><dt>Grand total</dt><dd>{{invoice.grandTotal|currency:'BDT':'symbol-narrow'}}</dd></div><div><dt>Paid</dt><dd>{{invoice.paidAmount|currency:'BDT':'symbol-narrow'}}</dd></div><div><dt>Due</dt><dd>{{invoice.dueAmount|currency:'BDT':'symbol-narrow'}}</dd></div></dl>
         </section>
-        @if(invoice.notes){<p class="print-invoice__notes"><strong>Notes:</strong> {{invoice.notes}}</p>}
-        <footer class="print-invoice__thank-you">Thank you for shopping with BShop.</footer>
+        @if(invoice.notes){<p class="print-invoice__notes"><strong>Notes:</strong> {{invoice.notes}}</p>}@if(terms()){<p class="print-invoice__notes"><strong>Terms:</strong> {{terms()}}</p>}@if(returnPolicy()){<p class="print-invoice__notes"><strong>Return policy:</strong> {{returnPolicy()}}</p>}
+        <footer class="print-invoice__thank-you">{{footerText() || shopFooter()}}</footer>
+      </section>
+      <section class="print-receipt" aria-hidden="true">
+        <header>@if(showLogo() && shopLogo()){<img class="print-receipt__logo" [src]="shopLogo()!" alt="" />}<strong>{{shopName()}}</strong><span>Sales receipt</span><small>{{invoice.invoiceNumber}} · {{invoice.saleDate|date:'medium'}}</small></header>
+        @if(invoice.customerId){<p><strong>{{invoice.customerName}}</strong>@if(invoice.customerPhone){<br>{{invoice.customerPhone}}}</p>}
+        <table><thead><tr><th>Item</th><th>Qty</th><th>Amount</th></tr></thead><tbody>@for(line of invoice.items;track line.id){<tr><td>{{line.productName}}<small>{{line.unitPrice|currency:'BDT':'symbol-narrow'}} · Disc {{line.discountAmount|currency:'BDT':'symbol-narrow'}}</small></td><td>{{line.quantity}}</td><td>{{line.lineTotal|currency:'BDT':'symbol-narrow'}}</td></tr>}</tbody></table>
+        <dl><div><dt>Subtotal</dt><dd>{{invoice.subtotal|currency:'BDT':'symbol-narrow'}}</dd></div><div><dt>Discount</dt><dd>{{invoice.discountAmount|currency:'BDT':'symbol-narrow'}}</dd></div><div><dt>VAT</dt><dd>{{invoice.vatAmount|currency:'BDT':'symbol-narrow'}}</dd></div><div class="grand"><dt>Total</dt><dd>{{invoice.grandTotal|currency:'BDT':'symbol-narrow'}}</dd></div><div><dt>Paid</dt><dd>{{invoice.paidAmount|currency:'BDT':'symbol-narrow'}}</dd></div><div><dt>Due</dt><dd>{{invoice.dueAmount|currency:'BDT':'symbol-narrow'}}</dd></div></dl>
+        @if(invoice.notes){<p>Notes: {{invoice.notes}}</p>}@if(terms()){<p>{{terms()}}</p>}<footer>{{footerText() || shopFooter()}}</footer>
       </section>
     }
     @if(errorMessage()){<p class="error-message">{{errorMessage()}}</p>}
@@ -103,20 +116,28 @@ import { SaleDetail } from './sales.models';
     .section{margin-block:1rem}.two-columns{display:grid;gap:1rem;grid-template-columns:1fr 1fr}
     mat-card-content{padding-block-start:.75rem}.activity,.total-row{align-items:center;border-block-start:1px solid var(--bshop-color-border);display:flex;justify-content:space-between;padding:.75rem 0}
     .activity div span{color:var(--bshop-color-text-muted);display:block;font-size:.8rem}.grand{font-size:1.1rem}
-    @media(width <= 750px){.two-columns{grid-template-columns:1fr}}
+    .invoice-format{border:1px solid var(--bshop-color-border);border-radius:var(--bshop-radius-md);min-width:9rem;padding:.35rem .5rem}@media(width <= 750px){.two-columns{grid-template-columns:1fr}}
   `
 })
 export class SaleDetailPage implements OnInit {
   private readonly api = inject(SalesApiService);
+  private readonly settingsApi = inject(SettingsApiService);
   private readonly auth = inject(AuthService);
   private readonly route = inject(ActivatedRoute);
   protected readonly sale = signal<SaleDetail | null>(null);
   protected readonly errorMessage = signal('');
+  protected readonly printFormat = signal<'A4' | 'Short'>('A4');
+  protected readonly a4Enabled = signal(true); protected readonly shortEnabled = signal(true);
+  protected readonly shopName = signal('BShop'); protected readonly shopLogo = signal<string | null>(null); protected readonly shopFooter = signal('Thank you for shopping with us.');
+  protected readonly headerText = signal<string | null>(null); protected readonly footerText = signal<string | null>(null); protected readonly terms = signal<string | null>(null); protected readonly returnPolicy = signal<string | null>(null); protected readonly showLogo = signal(true);
   protected readonly successMessage = signal(history.state?.created ? 'Sale completed and stock posted.' : '');
   protected readonly itemColumns = ['product', 'quantity', 'price', 'discount', 'total'];
   protected readonly canCollectDue = this.auth.hasPermission(permissions.customerAccounts.collectDue);
   protected readonly canCancel = this.auth.hasPermission(permissions.sales.cancel);
   ngOnInit(): void {
+    this.settingsApi.getInvoiceTemplate().subscribe({ next: setting => { this.a4Enabled.set(setting.a4Enabled); this.shortEnabled.set(setting.shortEnabled); this.printFormat.set(setting.defaultFormat); this.showLogo.set(setting.showLogo); this.headerText.set(setting.headerText); this.footerText.set(setting.footerText); } });
+    this.settingsApi.getShop().subscribe({ next: setting => { this.shopName.set(setting.shopName); this.shopLogo.set(setting.logoUrl); this.shopFooter.set(setting.receiptFooter); } });
+    this.settingsApi.getInvoice().subscribe({ next: setting => { this.terms.set(setting.termsAndConditions); this.returnPolicy.set(setting.returnPolicy); } });
     this.api.getSale(this.route.snapshot.paramMap.get('id')!).subscribe({
       next: sale => this.sale.set(sale),
       error: error => this.errorMessage.set(this.describe(error))
@@ -125,6 +146,7 @@ export class SaleDetailPage implements OnInit {
   protected print(): void {
     const originalTitle = document.title;
     const invoiceNumber = this.sale()?.invoiceNumber;
+    document.documentElement.dataset['invoicePrintFormat'] = this.printFormat();
     document.title = invoiceNumber ? `BShop Invoice ${invoiceNumber}` : 'BShop Invoice';
     window.addEventListener('afterprint', () => { document.title = originalTitle; }, { once: true });
     window.print();

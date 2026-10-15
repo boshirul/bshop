@@ -27,6 +27,7 @@ appsettings.Local.json
 # Test output
 TestResults/
 coverage/
+artifacts/
 
 # OS files
 .DS_Store

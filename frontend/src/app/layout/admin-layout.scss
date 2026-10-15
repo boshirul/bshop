@@ -44,7 +44,7 @@ app-admin-layout {
   text-overflow: ellipsis;
   white-space: nowrap;
 }
-.user-profile { align-items: center; display: inline-flex; gap: var(--bshop-space-2); }.user-avatar { align-items: center; background: color-mix(in srgb, var(--bshop-color-primary), var(--bshop-color-surface-raised) 58%); border: 1px solid color-mix(in srgb, var(--bshop-color-primary), transparent 50%); border-radius: 50%; color: var(--bshop-color-text); display: inline-flex; font-size: .8rem; font-weight: 800; height: 2.1rem; justify-content: center; width: 2.1rem; }
+.user-profile { align-items: center; display: inline-flex; gap: var(--bshop-space-2); }.user-avatar { align-items: center; background: color-mix(in srgb, var(--bshop-color-primary), var(--bshop-color-surface-raised) 58%); border: 1px solid color-mix(in srgb, var(--bshop-color-primary), transparent 50%); border-radius: 50%; color: var(--bshop-color-text); display: inline-flex; font-size: .8rem; font-weight: 800; height: 2.1rem; justify-content: center; overflow:hidden; width: 2.1rem; }.user-avatar img{height:100%;object-fit:cover;width:100%;}
 
 .app-container {
   background: var(--bshop-color-bg);

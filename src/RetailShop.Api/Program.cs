@@ -97,7 +97,10 @@ builder.Services
 
 var app = builder.Build();
 
-if (!app.Environment.IsDevelopment())
+// Production deployments should terminate TLS at IIS or use HTTPS directly.
+// The explicitly documented local-IIS profile can disable the redirect only for
+// a loopback-only installation that is intentionally hosted over HTTP.
+if (!app.Environment.IsDevelopment() && app.Configuration.GetValue("Https:Enabled", true))
 {
     app.UseHsts();
     app.UseHttpsRedirection();

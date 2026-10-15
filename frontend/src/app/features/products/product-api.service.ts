@@ -1,6 +1,6 @@
 import { HttpClient, HttpEvent, HttpParams, HttpRequest } from '@angular/common/http';
 import { inject, Injectable } from '@angular/core';
-import { map, Observable } from 'rxjs';
+import { forkJoin, map, Observable, switchMap } from 'rxjs';
 import { API_BASE_URL } from '../../core/http/api-base-url.token';
 import {
   ApiResponse,
@@ -34,7 +34,16 @@ export class ProductApiService {
         `${this.apiBaseUrl}/products`,
         { params }
       )
-      .pipe(map((response) => this.requireData(response)));
+      .pipe(
+        map((response) => this.requireData(response)),
+        map((result) => ({
+          ...result,
+          items: result.items.map((item) => ({
+            ...item,
+            imageUrl: this.resolveApiUrl(item.imageUrl)
+          }))
+        }))
+      );
   }
 
   getProduct(id: string): Observable<ProductDetail> {
@@ -72,7 +81,15 @@ export class ProductApiService {
 
   getMedia(productId: string): Observable<ProductMediaItem[]> {
     return this.http.get<ApiResponse<ProductMediaItem[]>>(`${this.apiBaseUrl}/products/${productId}/media`)
-      .pipe(map((response) => this.requireData(response)));
+      .pipe(
+        map((response) => this.requireData(response)),
+        map((media) => media.map((item) => ({
+          ...item,
+          url: this.resolveApiUrl(item.url) ?? item.url,
+          thumbnailUrl: this.resolveApiUrl(item.thumbnailUrl)
+        }))),
+        switchMap((media) => forkJoin(media.map((item) => this.toPreview(item))))
+      );
   }
 
   uploadMedia(productId: string, file: File): Observable<HttpEvent<ApiResponse<ProductMediaItem>>> {
@@ -201,6 +218,30 @@ export class ProductApiService {
     }
 
     return response.data;
+  }
+
+  // Product media content is intentionally protected. Fetching it through HttpClient
+  // retains the existing bearer-token authorization while object URLs keep native
+  // image/video previews working in the product editor.
+  private toPreview(item: ProductMediaItem): Observable<ProductMediaItem> {
+    const content = this.http.get(item.url, { responseType: 'blob' });
+    const thumbnail = item.thumbnailUrl
+      ? this.http.get(item.thumbnailUrl, { responseType: 'blob' })
+      : null;
+    return thumbnail
+      ? forkJoin({ content, thumbnail }).pipe(map(({ content: file, thumbnail: poster }) => ({
+          ...item, url: URL.createObjectURL(file), thumbnailUrl: URL.createObjectURL(poster)
+        })))
+      : content.pipe(map((file) => ({ ...item, url: URL.createObjectURL(file) })));
+  }
+
+  // API contracts use /api/... paths. When the API is hosted as an IIS
+  // application, retain its PathBase instead of accidentally requesting the
+  // site root (for example, /api/... instead of /BShopApi/api/...).
+  private resolveApiUrl(url: string | null): string | null {
+    if (!url?.startsWith('/api/')) return url;
+    const applicationBase = this.apiBaseUrl.replace(/\/api$/, '');
+    return `${applicationBase}${url}`;
   }
 }
 

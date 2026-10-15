@@ -23,6 +23,10 @@ export const routes: Routes = [
     children: [
       { path: '', pathMatch: 'full', redirectTo: 'dashboard' },
       {
+        path: 'my-profile',
+        loadChildren: () => import('./features/profile/profile.routes').then(module => module.PROFILE_ROUTES)
+      },
+      {
         path: 'dashboard',
         loadChildren: () =>
           import('./features/dashboard/dashboard.routes').then(
@@ -67,6 +71,11 @@ export const routes: Routes = [
           import('./features/sales-pos/sales-pos.routes').then(
             (module) => module.SALES_POS_ROUTES
           )
+      },
+      {
+        path: 'expenses',
+        canMatch: [permissionGuard(permissions.expenses.view)],
+        loadChildren: () => import('./features/expenses/expenses.routes').then(module => module.EXPENSE_ROUTES)
       },
         {
           path: 'quotations',

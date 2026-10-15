@@ -411,11 +411,7 @@ export class ProductEditorPage implements OnInit {
         if (event.type === HttpEventType.UploadProgress && event.total) {
           this.uploadProgress.set(Math.round(event.loaded * 100 / event.total));
         }
-        if (event.type === HttpEventType.Response && event.body?.data) {
-          const updatedMedia = event.body.data;
-          this.media.update(items => items.map(item => item.id === media.id ? updatedMedia : item));
-          this.uploadProgress.set(null);
-        }
+        if (event.type === HttpEventType.Response) { this.uploadProgress.set(null); this.loadMedia(this.productId!); }
       },
       error: error => { this.errorMessage.set(this.describeError(error)); this.uploadProgress.set(null); }
     });
@@ -437,7 +433,7 @@ export class ProductEditorPage implements OnInit {
     const target = index + direction;
     if (target < 0 || target >= reordered.length) return;
     [reordered[index], reordered[target]] = [reordered[target], reordered[index]];
-    this.api.reorderMedia(this.productId, reordered.map(item => item.id)).subscribe({ next: media => this.media.set(media), error: error => this.errorMessage.set(this.describeError(error)) });
+    this.api.reorderMedia(this.productId, reordered.map(item => item.id)).subscribe({ next: () => this.loadMedia(this.productId!), error: error => this.errorMessage.set(this.describeError(error)) });
   }
 
   protected formatFileSize(bytes: number): string { return bytes >= 1024 * 1024 ? `${(bytes / 1024 / 1024).toFixed(1)} MB` : `${Math.max(1, Math.round(bytes / 1024))} KB`; }

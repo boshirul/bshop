@@ -55,6 +55,11 @@ This runbook is for staging and production deployment.
 
 6. Start API service.
 7. Start frontend host.
+   Configure the frontend static host to serve `index.html` for client-side routes
+   such as `/online-store/products/{id}`. Keep `/api/*` routed to the API and
+   continue serving existing static files directly. For example, an nginx static
+   host should use `try_files $uri $uri/ /index.html;`; an IIS static host should
+   use an equivalent SPA rewrite rule that excludes `/api` and existing files.
 8. Verify:
    - `GET /api/health`
    - Login

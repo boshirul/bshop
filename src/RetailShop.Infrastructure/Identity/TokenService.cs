@@ -70,7 +70,8 @@ internal sealed class TokenService(
             user.Email ?? string.Empty,
             user.FullName,
             roles.ToArray(),
-            permissions);
+            permissions,
+            string.IsNullOrWhiteSpace(user.AvatarStorageKey) ? null : "/api/auth/profile/photo/content");
 
         return new AccessTokenResult(
             new JwtSecurityTokenHandler().WriteToken(token),

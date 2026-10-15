@@ -17,6 +17,33 @@ export interface OnlineProductListItem {
   availableQuantity: number;
 }
 
+export interface OnlineStoreCategoryItem { id: string; name: string; }
+
+export interface OnlineProductMediaItem {
+  id: string;
+  mediaType: 'Image' | 'Video';
+  url: string;
+  thumbnailUrl: string | null;
+  contentType: string;
+  fileSize: number;
+  isPrimary: boolean;
+  sortOrder: number;
+}
+
+export interface OnlineProductDetailItem extends OnlineProductListItem {
+  categoryId: string;
+  categoryName: string;
+  description: string | null;
+  isWarrantyAvailable: boolean;
+  warrantyMonths: number | null;
+  media: OnlineProductMediaItem[];
+}
+
+export interface OnlineStorePoliciesItem {
+  termsAndConditions: string | null;
+  returnPolicy: string | null;
+}
+
 export interface OnlineOrderLine {
   id: string;
   productId: string;

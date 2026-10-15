@@ -139,7 +139,6 @@ public sealed class ProductsController(IProductService service) : ControllerBase
     }
 
     [HttpGet("{id:guid}/media")]
-    [AllowAnonymous]
     public async Task<ActionResult<ApiResponse<IReadOnlyCollection<ProductMediaItem>>>> GetMedia(
         Guid id,
         CancellationToken cancellationToken) =>
@@ -221,7 +220,6 @@ public sealed class ProductsController(IProductService service) : ControllerBase
     }
 
     [HttpGet("{productId:guid}/media/{mediaId:guid}/content")]
-    [AllowAnonymous]
     public async Task<IActionResult> MediaContent(
         Guid productId, Guid mediaId, [FromQuery] bool thumbnail, CancellationToken cancellationToken)
     {

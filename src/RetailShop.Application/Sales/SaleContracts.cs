@@ -90,6 +90,8 @@ public sealed record SalePaymentItem(
     string? ReferenceNumber,
     string? Notes);
 
+public sealed record InvoicePrintRepresentation(SaleDetailItem Sale, string? SnapshotJson, int? TemplateVersion);
+
 public sealed record CustomerLedgerItem(
     Guid Id,
     DateTimeOffset EntryDate,
@@ -124,6 +126,7 @@ public interface ISaleService
     Task<OperationResult<SaleDetailItem>> GetSaleAsync(
         Guid id,
         CancellationToken cancellationToken);
+    Task<OperationResult<InvoicePrintRepresentation>> GetInvoicePrintAsync(Guid id, CancellationToken cancellationToken);
 
     Task<OperationResult<SaleDetailItem>> CreateSaleAsync(
         CreateSaleRequest request,

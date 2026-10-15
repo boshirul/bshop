@@ -17,6 +17,7 @@ using RetailShop.Domain.Warranty;
 using RetailShop.Domain.OnlineOrders;
 using RetailShop.Domain.DataExchange;
 using RetailShop.Domain.Notifications;
+using RetailShop.Domain.Expenses;
 
 namespace RetailShop.Infrastructure.Persistence;
 
@@ -58,12 +59,19 @@ public sealed class RetailShopDbContext(DbContextOptions<RetailShopDbContext> op
     public DbSet<ShopSetting> ShopSettings => Set<ShopSetting>();
 
     public DbSet<InvoiceSetting> InvoiceSettings => Set<InvoiceSetting>();
+    public DbSet<InvoiceTemplateSetting> InvoiceTemplateSettings => Set<InvoiceTemplateSetting>();
 
     public DbSet<TaxSetting> TaxSettings => Set<TaxSetting>();
 
     public DbSet<SystemSetting> SystemSettings => Set<SystemSetting>();
 
     public DbSet<PaymentMethod> PaymentMethods => Set<PaymentMethod>();
+
+    public DbSet<ExpenseCategory> ExpenseCategories => Set<ExpenseCategory>();
+
+    public DbSet<ExpenseVoucher> ExpenseVouchers => Set<ExpenseVoucher>();
+
+    public DbSet<ExpenseVoucherDetail> ExpenseVoucherDetails => Set<ExpenseVoucherDetail>();
 
     public DbSet<StockBalance> StockBalances => Set<StockBalance>();
 
@@ -93,6 +101,7 @@ public sealed class RetailShopDbContext(DbContextOptions<RetailShopDbContext> op
     public DbSet<SaleDetail> SaleDetails => Set<SaleDetail>();
 
     public DbSet<SalePayment> SalePayments => Set<SalePayment>();
+    public DbSet<SaleInvoiceSnapshot> SaleInvoiceSnapshots => Set<SaleInvoiceSnapshot>();
 
     public DbSet<CustomerLedgerEntry> CustomerLedgerEntries =>
         Set<CustomerLedgerEntry>();
@@ -145,6 +154,7 @@ public sealed class RetailShopDbContext(DbContextOptions<RetailShopDbContext> op
         {
             entity.ToTable("Users");
             entity.Property(user => user.FullName).HasMaxLength(200).IsRequired();
+            entity.Property(user => user.AvatarStorageKey).HasMaxLength(500);
             entity.HasIndex(user => user.Email);
         });
         modelBuilder.Entity<ApplicationRole>().ToTable("Roles");
@@ -426,6 +436,17 @@ public sealed class RetailShopDbContext(DbContextOptions<RetailShopDbContext> op
             entity.HasQueryFilter(setting => !setting.IsDeleted);
         });
 
+        modelBuilder.Entity<InvoiceTemplateSetting>(entity =>
+        {
+            entity.ToTable("InvoiceTemplateSettings");
+            entity.Property(setting => setting.DefaultFormat).HasConversion<string>().HasMaxLength(20);
+            entity.Property(setting => setting.LogoPlacement).HasConversion<string>().HasMaxLength(20);
+            entity.Property(setting => setting.HeaderText).HasMaxLength(500);
+            entity.Property(setting => setting.FooterText).HasMaxLength(500);
+            entity.Property(setting => setting.AccentColor).HasMaxLength(7).IsRequired();
+            entity.HasQueryFilter(setting => !setting.IsDeleted);
+        });
+
         modelBuilder.Entity<TaxSetting>(entity =>
         {
             entity.ToTable("TaxSettings");
@@ -459,6 +480,41 @@ public sealed class RetailShopDbContext(DbContextOptions<RetailShopDbContext> op
             entity.HasQueryFilter(method => !method.IsDeleted);
         });
 
+        modelBuilder.Entity<ExpenseCategory>(entity =>
+        {
+            entity.ToTable("ExpenseCategories");
+            entity.Property(category => category.Code).HasMaxLength(40).IsRequired();
+            entity.Property(category => category.Name).HasMaxLength(150).IsRequired();
+            entity.HasIndex(category => category.Code).IsUnique().HasFilter("\"IsDeleted\" = false");
+            entity.HasQueryFilter(category => !category.IsDeleted);
+        });
+
+        modelBuilder.Entity<ExpenseVoucher>(entity =>
+        {
+            entity.ToTable("ExpenseVouchers");
+            entity.Property(voucher => voucher.VoucherNumber).HasMaxLength(40).IsRequired();
+            entity.Property(voucher => voucher.Payee).HasMaxLength(200);
+            entity.Property(voucher => voucher.GeneralRemarks).HasMaxLength(1000);
+            entity.Property(voucher => voucher.VoidReason).HasMaxLength(500);
+            entity.Property(voucher => voucher.Status).HasConversion<string>().HasMaxLength(20);
+            entity.Property(voucher => voucher.TotalAmount).HasPrecision(18, 2);
+            entity.HasIndex(voucher => voucher.VoucherNumber).IsUnique();
+            entity.HasIndex(voucher => new { voucher.ExpenseDate, voucher.Status });
+            entity.HasQueryFilter(voucher => !voucher.IsDeleted);
+            entity.HasOne(voucher => voucher.PaymentMethod).WithMany().HasForeignKey(voucher => voucher.PaymentMethodId).OnDelete(DeleteBehavior.Restrict);
+            entity.HasMany(voucher => voucher.Details).WithOne(detail => detail.Voucher).HasForeignKey(detail => detail.ExpenseVoucherId).OnDelete(DeleteBehavior.Cascade);
+        });
+
+        modelBuilder.Entity<ExpenseVoucherDetail>(entity =>
+        {
+            entity.ToTable("ExpenseVoucherDetails");
+            entity.Property(detail => detail.Description).HasMaxLength(500).IsRequired();
+            entity.Property(detail => detail.Reference).HasMaxLength(150);
+            entity.Property(detail => detail.Amount).HasPrecision(18, 2);
+            entity.HasIndex(detail => detail.ExpenseCategoryId);
+            entity.HasOne(detail => detail.Category).WithMany(category => category.Details).HasForeignKey(detail => detail.ExpenseCategoryId).OnDelete(DeleteBehavior.Restrict);
+        });
+
         modelBuilder.Entity<Sale>(entity =>
         {
             entity.ToTable("Sales");
@@ -489,6 +545,17 @@ public sealed class RetailShopDbContext(DbContextOptions<RetailShopDbContext> op
             entity.HasQueryFilter(sale =>
                 !sale.IsDeleted &&
                 (sale.CustomerId == null || !sale.Customer!.IsDeleted));
+        });
+
+        modelBuilder.Entity<SaleInvoiceSnapshot>(entity =>
+        {
+            entity.ToTable("SaleInvoiceSnapshots");
+            entity.Property(snapshot => snapshot.Content).IsRequired();
+            entity.HasIndex(snapshot => snapshot.SaleId).IsUnique();
+            entity.HasOne(snapshot => snapshot.Sale)
+                .WithOne()
+                .HasForeignKey<SaleInvoiceSnapshot>(snapshot => snapshot.SaleId)
+                .OnDelete(DeleteBehavior.Restrict);
         });
 
         modelBuilder.Entity<SaleDetail>(entity =>

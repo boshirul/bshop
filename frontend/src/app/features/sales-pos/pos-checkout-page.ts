@@ -18,6 +18,7 @@ import { ProductListItem } from '../products/product.models';
 import { SettingsApiService } from '../settings/settings-api.service';
 import { PaymentMethodItem } from '../settings/settings.models';
 import { SalesApiService } from './sales-api.service';
+import { priceForProductChange } from '../../shared/utils/line-product-pricing';
 
 type LineForm = FormGroup<{
   productId: FormControl<string>;
@@ -224,6 +225,7 @@ export class PosCheckoutPage implements OnInit {
   protected readonly canChangePrice = this.auth.hasPermission(permissions.sales.changePrice);
   protected readonly canDiscount = this.auth.hasPermission(permissions.sales.discount);
   protected readonly canSellOnDue = this.auth.hasPermission(permissions.sales.sellOnDue);
+  private readonly selectedProductIds = new WeakMap<LineForm, string>();
   private readonly formRevision = signal(0);
   protected readonly form = new FormGroup({
     customerId: new FormControl('', { nonNullable: true }),
@@ -273,7 +275,7 @@ export class PosCheckoutPage implements OnInit {
   protected addLine(product?: ProductListItem): void {
     const line = this.createLine();
     if (product) {
-      line.patchValue({ productId: product.id, unitPrice: product.salePrice });
+      this.applyProductToLine(line, product.id);
     }
     this.items.push(line);
   }
@@ -282,8 +284,7 @@ export class PosCheckoutPage implements OnInit {
   protected removePayment(index: number): void { if (this.payments.length > 1) this.payments.removeAt(index); }
   protected selectProduct(index: number): void {
     const line = this.items.at(index);
-    const product = this.products().find(item => item.id === line.controls.productId.value);
-    if (product && line.controls.unitPrice.value === 0) line.controls.unitPrice.setValue(product.salePrice);
+    this.applyProductToLine(line, line.controls.productId.value);
   }
   protected addByBarcode(): void {
     const query = this.barcode.value.trim().toLowerCase();
@@ -298,7 +299,7 @@ export class PosCheckoutPage implements OnInit {
     if (existing) existing.controls.quantity.setValue(existing.controls.quantity.value + 1);
     else {
       const blank = this.items.length === 1 && !this.items.at(0).controls.productId.value;
-      if (blank) this.items.at(0).patchValue({ productId: product.id, unitPrice: product.salePrice });
+      if (blank) this.applyProductToLine(this.items.at(0), product.id);
       else this.addLine(product);
     }
     this.barcode.setValue('');
@@ -379,6 +380,15 @@ export class PosCheckoutPage implements OnInit {
       serialNumbers: new FormControl('', { nonNullable: true })
     });
   }
+  private applyProductToLine(line: LineForm, productId: string): void {
+    const unitPrice = priceForProductChange(
+      this.selectedProductIds.get(line),
+      productId,
+      this.products());
+    if (unitPrice === null) return;
+    line.patchValue({ productId, unitPrice });
+    this.selectedProductIds.set(line, productId);
+  }
   private createPayment(): PaymentForm {
     return new FormGroup({
       paymentMethodId: new FormControl('', { nonNullable: true }),
@@ -386,7 +396,12 @@ export class PosCheckoutPage implements OnInit {
       referenceNumber: new FormControl('', { nonNullable: true })
     });
   }
-  private today(): string { return new Date().toISOString().slice(0, 10); }
+  private today(): string {
+    const date = new Date();
+    const month = String(date.getMonth() + 1).padStart(2, '0');
+    const day = String(date.getDate()).padStart(2, '0');
+    return `${date.getFullYear()}-${month}-${day}`;
+  }
   private describe(error: unknown): string {
     return error instanceof HttpErrorResponse && error.error?.errors?.[0]
       ? error.error.errors[0] : 'The sale could not be completed.';

@@ -62,6 +62,7 @@ export const permissions = {
     view: 'online-orders.view',
     manage: 'online-orders.manage'
   },
+  expenses: { view: 'expenses.view', manage: 'expenses.manage', post: 'expenses.post', void: 'expenses.void', manageCategories: 'expenses.categories.manage', reports: 'reports.expenses' },
   dataExchange: {
     manage: 'data-exchange.manage'
   },

@@ -12,6 +12,9 @@ import { ContactApiService } from '../contacts/contact-api.service';
 import { CustomerItem } from '../contacts/contact.models';
 import { ProductApiService } from '../products/product-api.service';
 import { ProductListItem } from '../products/product.models';
+import { AuthService } from '../../core/auth/auth.service';
+import { permissions } from '../../core/auth/permissions';
+import { priceForProductChange } from '../../shared/utils/line-product-pricing';
 import { QuotationApiService } from './quotation-api.service';
 
 type LineForm = FormGroup<{
@@ -48,8 +51,8 @@ type LineForm = FormGroup<{
                 @for(product of products();track product.id){<mat-option [value]="product.id">{{product.name}} · {{product.productCode}}</mat-option>}
               </mat-select></mat-form-field>
               <mat-form-field appearance="outline"><mat-label>Quantity</mat-label><input matInput type="number" min=".001" step=".001" formControlName="quantity" /></mat-form-field>
-              <mat-form-field appearance="outline"><mat-label>Unit price</mat-label><input matInput type="number" min="0" step=".01" formControlName="unitPrice" /></mat-form-field>
-              <mat-form-field appearance="outline"><mat-label>Discount</mat-label><input matInput type="number" min="0" step=".01" formControlName="discountAmount" /></mat-form-field>
+              <mat-form-field appearance="outline"><mat-label>Unit price</mat-label><input matInput type="number" min="0" step=".01" formControlName="unitPrice" [readonly]="!canChangePrice" /></mat-form-field>
+              <mat-form-field appearance="outline"><mat-label>Discount</mat-label><input matInput type="number" min="0" step=".01" formControlName="discountAmount" [readonly]="!canDiscount" /></mat-form-field>
               <mat-form-field appearance="outline"><mat-label>VAT</mat-label><input matInput type="number" min="0" step=".01" formControlName="vatAmount" /></mat-form-field>
               <div class="line-total transaction-summary"><span>Line total</span><strong>{{lineTotal(line)|currency:'BDT':'symbol-narrow'}}</strong></div>
               <button matButton type="button" [disabled]="items.length===1" (click)="removeLine(index)">Remove</button>
@@ -90,6 +93,7 @@ export class QuotationEditorPage implements OnInit {
   private readonly api = inject(QuotationApiService);
   private readonly contactsApi = inject(ContactApiService);
   private readonly productApi = inject(ProductApiService);
+  private readonly auth = inject(AuthService);
   private readonly route = inject(ActivatedRoute);
   private readonly router = inject(Router);
   protected readonly quotationId = this.route.snapshot.paramMap.get('id');
@@ -97,6 +101,9 @@ export class QuotationEditorPage implements OnInit {
   protected readonly products = signal<ProductListItem[]>([]);
   protected readonly saving = signal(false);
   protected readonly errorMessage = signal('');
+  protected readonly canChangePrice = this.auth.hasPermission(permissions.sales.changePrice);
+  protected readonly canDiscount = this.auth.hasPermission(permissions.sales.discount);
+  private readonly selectedProductIds = new WeakMap<LineForm, string>();
   private readonly revision = signal(0);
   protected readonly form = new FormGroup({
     customerId: new FormControl('', { nonNullable: true, validators: [Validators.required] }),
@@ -109,8 +116,14 @@ export class QuotationEditorPage implements OnInit {
   protected readonly total = computed(() => { this.revision(); return this.items.controls.reduce((sum, line) => sum + this.lineTotal(line), 0); });
   protected get items(): FormArray<LineForm> { return this.form.controls.items; }
   ngOnInit(): void {
-    this.contactsApi.get('customers', '', 1, 100).subscribe({ next: result => this.customers.set(result.items as CustomerItem[]) });
-    this.productApi.getProducts('', 1, 100).subscribe({ next: result => this.products.set(result.items.filter(item => item.isActive)) });
+    this.contactsApi.get('customers', '', 1, 100).subscribe({
+      next: result => this.customers.set(result.items as CustomerItem[]),
+      error: () => this.errorMessage.set('Customers could not be loaded.')
+    });
+    this.productApi.getProducts('', 1, 100).subscribe({
+      next: result => this.products.set(result.items.filter(item => item.isActive)),
+      error: () => this.errorMessage.set('Products could not be loaded.')
+    });
     this.form.valueChanges.subscribe(() => this.revision.update(value => value + 1));
     if (this.quotationId) this.api.getQuotation(this.quotationId).subscribe({
       next: quotation => {
@@ -124,13 +137,10 @@ export class QuotationEditorPage implements OnInit {
   }
   protected addLine(): void { this.items.push(this.createLine()); }
   protected removeLine(index: number): void { if (this.items.length > 1) this.items.removeAt(index); }
-  protected selectProduct(index: number): void {
-    const line = this.items.at(index); const product = this.products().find(item => item.id === line.controls.productId.value);
-    if (product && line.controls.unitPrice.value === 0) line.controls.unitPrice.setValue(product.salePrice);
-  }
+  protected selectProduct(index: number): void { this.applyProductToLine(this.items.at(index), this.items.at(index).controls.productId.value); }
   protected lineTotal(line: LineForm): number { const value = line.getRawValue(); return Math.max(0, value.quantity * value.unitPrice - value.discountAmount + value.vatAmount); }
   protected save(): void {
-    if (this.form.invalid) return;
+    if (this.form.invalid) { this.form.markAllAsTouched(); return; }
     this.saving.set(true); this.errorMessage.set('');
     const value = this.form.getRawValue();
     const request = { ...value, notes: value.notes || null, terms: value.terms || null };
@@ -145,7 +155,18 @@ export class QuotationEditorPage implements OnInit {
       discountAmount:new FormControl(0,{nonNullable:true,validators:[Validators.required,Validators.min(0)]}),
       vatAmount:new FormControl(0,{nonNullable:true,validators:[Validators.required,Validators.min(0)]}) });
   }
-  private today(): string { return new Date().toISOString().slice(0, 10); }
-  private addDays(days: number): string { const date = new Date(); date.setDate(date.getDate() + days); return date.toISOString().slice(0, 10); }
+  private applyProductToLine(line: LineForm, productId: string): void {
+    const unitPrice = priceForProductChange(this.selectedProductIds.get(line), productId, this.products());
+    if (unitPrice === null) return;
+    line.patchValue({ productId, unitPrice });
+    this.selectedProductIds.set(line, productId);
+  }
+  private today(): string { return this.toDateInput(new Date()); }
+  private addDays(days: number): string { const date = new Date(); date.setDate(date.getDate() + days); return this.toDateInput(date); }
+  private toDateInput(date: Date): string {
+    const month = String(date.getMonth() + 1).padStart(2, '0');
+    const day = String(date.getDate()).padStart(2, '0');
+    return `${date.getFullYear()}-${month}-${day}`;
+  }
   private describe(error: unknown): string { return error instanceof HttpErrorResponse && error.error?.errors?.[0] ? error.error.errors[0] : 'The quotation could not be saved.'; }
 }

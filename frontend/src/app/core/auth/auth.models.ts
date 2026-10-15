@@ -11,6 +11,7 @@ export interface CurrentUser {
   fullName: string;
   roles: string[];
   permissions: string[];
+  avatarUrl?: string | null;
 }
 
 export interface AuthResponse {

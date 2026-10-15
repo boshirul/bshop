@@ -123,6 +123,41 @@ public sealed class AuthController(IIdentityService identityService) : Controlle
             : Unauthorized(ApiResponse<CurrentUserResponse>.Failure(result.Errors));
     }
 
+    [Authorize]
+    [HttpGet("profile")]
+    public async Task<ActionResult<ApiResponse<UserProfileResponse>>> Profile(CancellationToken cancellationToken)
+    {
+        var result = await identityService.GetProfileAsync(User.GetRequiredUserId(), cancellationToken);
+        return result.Succeeded ? Ok(ApiResponse<UserProfileResponse>.Success(result.Value!)) : NotFound(ApiResponse<UserProfileResponse>.Failure(result.Errors));
+    }
+
+    [Authorize]
+    [HttpPost("profile/change-password")]
+    public async Task<ActionResult<ApiResponse<bool>>> ChangePassword(ChangePasswordRequest request, CancellationToken cancellationToken)
+    {
+        var result = await identityService.ChangePasswordAsync(User.GetRequiredUserId(), request, GetIpAddress(), cancellationToken);
+        return result.Succeeded ? Ok(ApiResponse<bool>.Success(true, "Password changed. Please sign in again.")) : BadRequest(ApiResponse<bool>.Failure(result.Errors));
+    }
+
+    [Authorize]
+    [HttpPost("profile/photo")]
+    [RequestSizeLimit(2 * 1024 * 1024)]
+    public async Task<ActionResult<ApiResponse<string>>> ReplacePhoto([FromForm] IFormFile file, CancellationToken cancellationToken)
+    {
+        if (file.Length == 0) return BadRequest(ApiResponse<string>.Failure(["Select a profile photo."]));
+        await using var stream = file.OpenReadStream();
+        var result = await identityService.ReplaceAvatarAsync(User.GetRequiredUserId(), stream, file.ContentType, file.Length, cancellationToken);
+        return result.Succeeded ? Ok(ApiResponse<string>.Success(result.Value!)) : BadRequest(ApiResponse<string>.Failure(result.Errors));
+    }
+
+    [Authorize]
+    [HttpGet("profile/photo/content")]
+    public async Task<IActionResult> ProfilePhoto(CancellationToken cancellationToken)
+    {
+        var result = await identityService.GetAvatarAsync(User.GetRequiredUserId(), cancellationToken);
+        return result.Succeeded ? File(result.Value!.Content, result.Value.ContentType) : NotFound();
+    }
+
     private void WriteRefreshCookie(AuthenticationSession session)
     {
         Response.Cookies.Append(

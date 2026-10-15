@@ -94,6 +94,16 @@ public static class Permissions
         public const string Inventory = "reports.inventory";
     }
 
+    public static class Expenses
+    {
+        public const string View = "expenses.view";
+        public const string Manage = "expenses.manage";
+        public const string Post = "expenses.post";
+        public const string Void = "expenses.void";
+        public const string ManageCategories = "expenses.categories.manage";
+        public const string Reports = "reports.expenses";
+    }
+
     public static class DataExchange
     {
         public const string Manage = "data-exchange.manage";
@@ -154,6 +164,12 @@ public static class Permissions
         new(Reports.Sales, "View sales reports", "Reports"),
         new(Reports.Profit, "View profit reports", "Reports"),
         new(Reports.Inventory, "View inventory reports", "Reports"),
+        new(Expenses.View, "View expenses", "Expenses"),
+        new(Expenses.Manage, "Create and edit expense drafts", "Expenses"),
+        new(Expenses.Post, "Post expense vouchers", "Expenses"),
+        new(Expenses.Void, "Void posted expenses", "Expenses"),
+        new(Expenses.ManageCategories, "Manage expense categories", "Expenses"),
+        new(Expenses.Reports, "View expense reports", "Expenses"),
         new(DataExchange.Manage, "Import and export data", "Data Exchange"),
         new(Notifications.View, "View notification center", "Notifications"),
         new(Notifications.Manage, "Generate and update notifications", "Notifications"),

@@ -44,6 +44,13 @@ public sealed class SalesController(ISaleService service) : ControllerBase
             : NotFound(ApiResponse<SaleDetailItem>.Failure(result.Errors));
     }
 
+    [HttpGet("{id:guid}/print")]
+    public async Task<ActionResult<ApiResponse<InvoicePrintRepresentation>>> Print(Guid id, CancellationToken cancellationToken)
+    {
+        var result = await service.GetInvoicePrintAsync(id, cancellationToken);
+        return result.Succeeded ? Ok(ApiResponse<InvoicePrintRepresentation>.Success(result.Value!)) : NotFound(ApiResponse<InvoicePrintRepresentation>.Failure(result.Errors));
+    }
+
     [HttpPost]
     [Authorize(Policy = Permissions.Sales.Create)]
     public async Task<ActionResult<ApiResponse<SaleDetailItem>>> Create(

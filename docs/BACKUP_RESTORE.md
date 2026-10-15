@@ -32,6 +32,21 @@ Keep at least:
 - Last weekly backup
 - Last monthly backup
 
+## Persistent application files
+
+The PostgreSQL dump does not contain uploaded product media or ASP.NET Core
+data-protection keys. Back up these persistent paths alongside every database
+backup, preserving their folder structure:
+
+- `C:\BShopData\Media` — product images, videos, and video posters.
+- `C:\BShopData\Keys` — data-protection keys used for protected application
+  data and authentication-related tokens.
+
+Do not expose either directory as an IIS static-file directory. Restore the
+folders before starting the API after a database restore, and verify that a
+sample `ProductMedia.StorageKey` resolves to a readable file beneath the media
+root. Keep the previous media root intact until that verification succeeds.
+
 ## Restore to a new database
 
 Do not restore directly over production until the backup has been tested in a

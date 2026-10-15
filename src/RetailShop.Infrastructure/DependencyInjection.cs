@@ -42,6 +42,8 @@ using RetailShop.Application.DataExchange;
 using RetailShop.Infrastructure.DataExchange;
 using RetailShop.Application.Notifications;
 using RetailShop.Infrastructure.Notifications;
+using RetailShop.Application.Expenses;
+using RetailShop.Infrastructure.Expenses;
 
 namespace RetailShop.Infrastructure;
 
@@ -150,6 +152,7 @@ public static class DependencyInjection
         services.AddScoped<IReportService, ReportService>();
         services.AddScoped<IDataExchangeService, DataExchangeService>();
         services.AddScoped<INotificationJobService, NotificationJobService>();
+        services.AddScoped<IExpenseService, ExpenseService>();
 
         return services;
     }

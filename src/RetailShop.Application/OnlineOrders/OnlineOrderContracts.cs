@@ -1,5 +1,6 @@
 using RetailShop.Application.Common;
 using RetailShop.Domain.OnlineOrders;
+using RetailShop.Domain.Products;
 
 namespace RetailShop.Application.OnlineOrders;
 
@@ -13,18 +14,37 @@ public sealed record OnlineProductListItem(
     string? ImageUrl,
     decimal AvailableQuantity);
 
+public sealed record OnlineStoreCategoryItem(Guid Id, string Name);
+
+public sealed record OnlineProductMediaItem(
+    Guid Id,
+    ProductMediaType MediaType,
+    string Url,
+    string? ThumbnailUrl,
+    string ContentType,
+    long FileSize,
+    bool IsPrimary,
+    int SortOrder);
+
+public sealed record OnlineStorePoliciesItem(
+    string? TermsAndConditions,
+    string? ReturnPolicy);
+
 public sealed record OnlineProductDetailItem(
     Guid Id,
     string ProductCode,
     string Name,
     string? BrandName,
+    Guid CategoryId,
+    string CategoryName,
     string UnitSymbol,
     string? Description,
     decimal SalePrice,
     string? ImageUrl,
     decimal AvailableQuantity,
     bool IsWarrantyAvailable,
-    int? WarrantyMonths);
+    int? WarrantyMonths,
+    IReadOnlyCollection<OnlineProductMediaItem> Media);
 
 public sealed record CreateOnlineOrderRequest(
     OnlineOrderSource Source,
@@ -112,6 +132,15 @@ public interface IOnlineOrderService
     Task<OperationResult<OnlineProductDetailItem>> GetStoreProductAsync(
         Guid id,
         CancellationToken cancellationToken);
+
+    Task<OperationResult<IReadOnlyCollection<OnlineProductMediaItem>>> GetStoreProductMediaAsync(
+        Guid productId,
+        CancellationToken cancellationToken);
+
+    Task<IReadOnlyCollection<OnlineStoreCategoryItem>> GetStoreCategoriesAsync(
+        CancellationToken cancellationToken);
+
+    Task<OnlineStorePoliciesItem> GetStorePoliciesAsync(CancellationToken cancellationToken);
 
     Task<OperationResult<OnlineOrderDetailItem>> CreateOrderAsync(
         CreateOnlineOrderRequest request,

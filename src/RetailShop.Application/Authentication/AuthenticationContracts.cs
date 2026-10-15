@@ -20,7 +20,8 @@ public sealed record CurrentUserResponse(
     string Email,
     string FullName,
     IReadOnlyCollection<string> Roles,
-    IReadOnlyCollection<string> Permissions);
+    IReadOnlyCollection<string> Permissions,
+    string? AvatarUrl = null);
 
 public sealed record AuthResponse(
     string AccessToken,
@@ -31,6 +32,20 @@ public sealed record AuthenticationSession(
     AuthResponse Response,
     string RefreshToken,
     DateTimeOffset RefreshTokenExpiresOn);
+
+public sealed record UserProfileResponse(
+    Guid Id,
+    string FullName,
+    string UserName,
+    string Email,
+    bool IsActive,
+    IReadOnlyCollection<string> Roles,
+    string? AvatarUrl);
+
+public sealed record ChangePasswordRequest(
+    [param: Required] string CurrentPassword,
+    [param: Required, MinLength(8)] string NewPassword,
+    [param: Required] string ConfirmNewPassword);
 
 public interface IIdentityService
 {
@@ -61,6 +76,14 @@ public interface IIdentityService
     Task<OperationResult<CurrentUserResponse>> GetCurrentUserAsync(
         Guid userId,
         CancellationToken cancellationToken);
+
+    Task<OperationResult<UserProfileResponse>> GetProfileAsync(Guid userId, CancellationToken cancellationToken);
+
+    Task<OperationResult<bool>> ChangePasswordAsync(Guid userId, ChangePasswordRequest request, string ipAddress, CancellationToken cancellationToken);
+
+    Task<OperationResult<string>> ReplaceAvatarAsync(Guid userId, Stream content, string contentType, long length, CancellationToken cancellationToken);
+
+    Task<OperationResult<(Stream Content, string ContentType)>> GetAvatarAsync(Guid userId, CancellationToken cancellationToken);
 }
 
 public interface IPasswordResetNotifier

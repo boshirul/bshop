@@ -91,6 +91,28 @@ internal sealed class SettingsService(
         return Map(setting);
     }
 
+    public async Task<InvoiceTemplateSettingsResponse> GetInvoiceTemplateAsync(CancellationToken cancellationToken)
+    {
+        var setting = await dbContext.InvoiceTemplateSettings.AsNoTracking().FirstOrDefaultAsync(cancellationToken);
+        return setting is null ? DefaultTemplate() : Map(setting);
+    }
+
+    public async Task<OperationResult<InvoiceTemplateSettingsResponse>> SaveInvoiceTemplateAsync(SaveInvoiceTemplateSettingsRequest request, Guid performedBy, CancellationToken cancellationToken)
+    {
+        if (!request.A4Enabled && !request.ShortEnabled)
+            return OperationResult<InvoiceTemplateSettingsResponse>.Failure("Enable at least one invoice print format.");
+        if ((request.DefaultFormat == InvoicePrintFormat.A4 && !request.A4Enabled) || (request.DefaultFormat == InvoicePrintFormat.Short && !request.ShortEnabled))
+            return OperationResult<InvoiceTemplateSettingsResponse>.Failure("The default invoice format must be enabled.");
+        var setting = await dbContext.InvoiceTemplateSettings.FirstOrDefaultAsync(cancellationToken);
+        if (setting is null) { setting = new InvoiceTemplateSetting { CreatedBy = performedBy }; dbContext.InvoiceTemplateSettings.Add(setting); }
+        else { setting.LastModifiedBy = performedBy; setting.Version++; }
+        setting.DefaultFormat = request.DefaultFormat; setting.A4Enabled = request.A4Enabled; setting.ShortEnabled = request.ShortEnabled;
+        setting.ShowLogo = request.ShowLogo; setting.LogoPlacement = request.LogoPlacement; setting.HeaderText = Clean(request.HeaderText); setting.FooterText = Clean(request.FooterText);
+        setting.AccentColor = request.AccentColor.ToUpperInvariant(); setting.ThermalMarginMm = request.ThermalMarginMm;
+        await SaveAndAuditAsync("InvoiceTemplateSetting", setting.Id, performedBy, cancellationToken);
+        return OperationResult<InvoiceTemplateSettingsResponse>.Success(Map(setting));
+    }
+
     public async Task<TaxSettingsResponse> GetTaxAsync(
         CancellationToken cancellationToken)
     {
@@ -306,6 +328,14 @@ internal sealed class SettingsService(
             setting.ReturnPolicy,
             setting.ShowTaxDetails,
             setting.ShowQrCode);
+
+    private static InvoiceTemplateSettingsResponse DefaultTemplate() =>
+        new(InvoicePrintFormat.A4, true, true, true, InvoiceLogoPlacement.Left, null, null, "#087CFF", 3, 1);
+
+    private static InvoiceTemplateSettingsResponse Map(InvoiceTemplateSetting setting) =>
+        new(setting.DefaultFormat, setting.A4Enabled, setting.ShortEnabled, setting.ShowLogo,
+            setting.LogoPlacement, setting.HeaderText, setting.FooterText, setting.AccentColor,
+            setting.ThermalMarginMm, setting.Version);
 
     private static TaxSettingsResponse Map(TaxSetting setting) =>
         new(setting.TaxName, setting.DefaultRate, setting.IsEnabled);

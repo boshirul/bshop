@@ -463,6 +463,194 @@ namespace RetailShop.Infrastructure.Persistence.Migrations
                     b.ToTable("ImportBatches", (string)null);
                 });
 
+            modelBuilder.Entity("RetailShop.Domain.Expenses.ExpenseCategory", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("Code")
+                        .IsRequired()
+                        .HasMaxLength(40)
+                        .HasColumnType("character varying(40)");
+
+                    b.Property<Guid?>("CreatedBy")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTimeOffset>("CreatedOn")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid?>("DeletedBy")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTimeOffset?>("DeletedOn")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<bool>("IsActive")
+                        .HasColumnType("boolean");
+
+                    b.Property<bool>("IsDeleted")
+                        .HasColumnType("boolean");
+
+                    b.Property<Guid?>("LastModifiedBy")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTimeOffset?>("LastModifiedOn")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(150)
+                        .HasColumnType("character varying(150)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("Code")
+                        .IsUnique()
+                        .HasFilter("\"IsDeleted\" = false");
+
+                    b.ToTable("ExpenseCategories", (string)null);
+                });
+
+            modelBuilder.Entity("RetailShop.Domain.Expenses.ExpenseVoucher", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid?>("CreatedBy")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTimeOffset>("CreatedOn")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid?>("DeletedBy")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTimeOffset?>("DeletedOn")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<DateOnly>("ExpenseDate")
+                        .HasColumnType("date");
+
+                    b.Property<string>("GeneralRemarks")
+                        .HasMaxLength(1000)
+                        .HasColumnType("character varying(1000)");
+
+                    b.Property<bool>("IsDeleted")
+                        .HasColumnType("boolean");
+
+                    b.Property<Guid?>("LastModifiedBy")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTimeOffset?>("LastModifiedOn")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("Payee")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)");
+
+                    b.Property<Guid?>("PaymentMethodId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid?>("PostedBy")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTimeOffset?>("PostedOn")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)");
+
+                    b.Property<decimal>("TotalAmount")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("numeric(18,2)");
+
+                    b.Property<string>("VoidReason")
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)");
+
+                    b.Property<Guid?>("VoidedBy")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTimeOffset?>("VoidedOn")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("VoucherNumber")
+                        .IsRequired()
+                        .HasMaxLength(40)
+                        .HasColumnType("character varying(40)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("PaymentMethodId");
+
+                    b.HasIndex("VoucherNumber")
+                        .IsUnique();
+
+                    b.HasIndex("ExpenseDate", "Status");
+
+                    b.ToTable("ExpenseVouchers", (string)null);
+                });
+
+            modelBuilder.Entity("RetailShop.Domain.Expenses.ExpenseVoucherDetail", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<decimal>("Amount")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("numeric(18,2)");
+
+                    b.Property<Guid?>("CreatedBy")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTimeOffset>("CreatedOn")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid?>("DeletedBy")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTimeOffset?>("DeletedOn")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("Description")
+                        .IsRequired()
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)");
+
+                    b.Property<Guid>("ExpenseCategoryId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("ExpenseVoucherId")
+                        .HasColumnType("uuid");
+
+                    b.Property<bool>("IsDeleted")
+                        .HasColumnType("boolean");
+
+                    b.Property<Guid?>("LastModifiedBy")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTimeOffset?>("LastModifiedOn")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("Reference")
+                        .HasMaxLength(150)
+                        .HasColumnType("character varying(150)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ExpenseCategoryId");
+
+                    b.HasIndex("ExpenseVoucherId");
+
+                    b.ToTable("ExpenseVoucherDetails", (string)null);
+                });
+
             modelBuilder.Entity("RetailShop.Domain.Inventory.StockAdjustment", b =>
                 {
                     b.Property<Guid>("Id")
@@ -2380,6 +2568,51 @@ namespace RetailShop.Infrastructure.Persistence.Migrations
                     b.ToTable("SaleDetails", (string)null);
                 });
 
+            modelBuilder.Entity("RetailShop.Domain.Sales.SaleInvoiceSnapshot", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("Content")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<Guid?>("CreatedBy")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTimeOffset>("CreatedOn")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid?>("DeletedBy")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTimeOffset?>("DeletedOn")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<bool>("IsDeleted")
+                        .HasColumnType("boolean");
+
+                    b.Property<Guid?>("LastModifiedBy")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTimeOffset?>("LastModifiedOn")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid>("SaleId")
+                        .HasColumnType("uuid");
+
+                    b.Property<int>("TemplateVersion")
+                        .HasColumnType("integer");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("SaleId")
+                        .IsUnique();
+
+                    b.ToTable("SaleInvoiceSnapshots", (string)null);
+                });
+
             modelBuilder.Entity("RetailShop.Domain.Sales.SalePayment", b =>
                 {
                     b.Property<Guid>("Id")
@@ -2474,6 +2707,76 @@ namespace RetailShop.Infrastructure.Persistence.Migrations
                     b.HasKey("Id");
 
                     b.ToTable("InvoiceSettings", (string)null);
+                });
+
+            modelBuilder.Entity("RetailShop.Domain.Settings.InvoiceTemplateSetting", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<bool>("A4Enabled")
+                        .HasColumnType("boolean");
+
+                    b.Property<string>("AccentColor")
+                        .IsRequired()
+                        .HasMaxLength(7)
+                        .HasColumnType("character varying(7)");
+
+                    b.Property<Guid?>("CreatedBy")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTimeOffset>("CreatedOn")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("DefaultFormat")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)");
+
+                    b.Property<Guid?>("DeletedBy")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTimeOffset?>("DeletedOn")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("FooterText")
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)");
+
+                    b.Property<string>("HeaderText")
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)");
+
+                    b.Property<bool>("IsDeleted")
+                        .HasColumnType("boolean");
+
+                    b.Property<Guid?>("LastModifiedBy")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTimeOffset?>("LastModifiedOn")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("LogoPlacement")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)");
+
+                    b.Property<bool>("ShortEnabled")
+                        .HasColumnType("boolean");
+
+                    b.Property<bool>("ShowLogo")
+                        .HasColumnType("boolean");
+
+                    b.Property<int>("ThermalMarginMm")
+                        .HasColumnType("integer");
+
+                    b.Property<int>("Version")
+                        .HasColumnType("integer");
+
+                    b.HasKey("Id");
+
+                    b.ToTable("InvoiceTemplateSettings", (string)null);
                 });
 
             modelBuilder.Entity("RetailShop.Domain.Settings.PaymentMethod", b =>
@@ -2992,6 +3295,10 @@ namespace RetailShop.Infrastructure.Persistence.Migrations
                     b.Property<int>("AccessFailedCount")
                         .HasColumnType("integer");
 
+                    b.Property<string>("AvatarStorageKey")
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)");
+
                     b.Property<string>("ConcurrencyStamp")
                         .IsConcurrencyToken()
                         .HasColumnType("text");
@@ -3293,6 +3600,35 @@ namespace RetailShop.Infrastructure.Persistence.Migrations
                     b.Navigation("CustomerReceipt");
 
                     b.Navigation("Sale");
+                });
+
+            modelBuilder.Entity("RetailShop.Domain.Expenses.ExpenseVoucher", b =>
+                {
+                    b.HasOne("RetailShop.Domain.Settings.PaymentMethod", "PaymentMethod")
+                        .WithMany()
+                        .HasForeignKey("PaymentMethodId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.Navigation("PaymentMethod");
+                });
+
+            modelBuilder.Entity("RetailShop.Domain.Expenses.ExpenseVoucherDetail", b =>
+                {
+                    b.HasOne("RetailShop.Domain.Expenses.ExpenseCategory", "Category")
+                        .WithMany("Details")
+                        .HasForeignKey("ExpenseCategoryId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("RetailShop.Domain.Expenses.ExpenseVoucher", "Voucher")
+                        .WithMany("Details")
+                        .HasForeignKey("ExpenseVoucherId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Category");
+
+                    b.Navigation("Voucher");
                 });
 
             modelBuilder.Entity("RetailShop.Domain.Inventory.StockAdjustmentDetail", b =>
@@ -3684,6 +4020,17 @@ namespace RetailShop.Infrastructure.Persistence.Migrations
                     b.Navigation("Sale");
                 });
 
+            modelBuilder.Entity("RetailShop.Domain.Sales.SaleInvoiceSnapshot", b =>
+                {
+                    b.HasOne("RetailShop.Domain.Sales.Sale", "Sale")
+                        .WithOne()
+                        .HasForeignKey("RetailShop.Domain.Sales.SaleInvoiceSnapshot", "SaleId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("Sale");
+                });
+
             modelBuilder.Entity("RetailShop.Domain.Sales.SalePayment", b =>
                 {
                     b.HasOne("RetailShop.Domain.Settings.PaymentMethod", "PaymentMethod")
@@ -3819,6 +4166,16 @@ namespace RetailShop.Infrastructure.Persistence.Migrations
             modelBuilder.Entity("RetailShop.Domain.CustomerAccounts.CustomerReceipt", b =>
                 {
                     b.Navigation("Allocations");
+                });
+
+            modelBuilder.Entity("RetailShop.Domain.Expenses.ExpenseCategory", b =>
+                {
+                    b.Navigation("Details");
+                });
+
+            modelBuilder.Entity("RetailShop.Domain.Expenses.ExpenseVoucher", b =>
+                {
+                    b.Navigation("Details");
                 });
 
             modelBuilder.Entity("RetailShop.Domain.Inventory.StockAdjustment", b =>

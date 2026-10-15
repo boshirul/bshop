@@ -51,7 +51,7 @@ internal sealed class OnlineOrderService(
                 item.SalePrice,
                 item.Media
                     .Where(media => media.MediaType == RetailShop.Domain.Products.ProductMediaType.Image && media.IsPrimary)
-                    .Select(media => "/api/products/" + item.Id + "/media/" + media.Id + "/content")
+                    .Select(media => "/api/online-store/products/" + item.Id + "/media/" + media.Id + "/content")
                     .FirstOrDefault() ?? item.Images
                     .Where(image => image.IsPrimary)
                     .Select(image => image.Url)
@@ -80,12 +80,14 @@ internal sealed class OnlineOrderService(
                 product.ProductCode,
                 product.Name,
                 product.Brand == null ? null : product.Brand.Name,
+                product.CategoryId,
+                product.Category.Name,
                 product.Unit.Symbol,
                 product.Description,
                 product.SalePrice,
                 product.Media
                     .Where(media => media.MediaType == RetailShop.Domain.Products.ProductMediaType.Image && media.IsPrimary)
-                    .Select(media => "/api/products/" + product.Id + "/media/" + media.Id + "/content")
+                    .Select(media => "/api/online-store/products/" + product.Id + "/media/" + media.Id + "/content")
                     .FirstOrDefault() ?? product.Images
                     .Where(image => image.IsPrimary)
                     .Select(image => image.Url)
@@ -95,12 +97,68 @@ internal sealed class OnlineOrderService(
                     .Select(balance => balance.AvailableQuantity)
                     .FirstOrDefault(),
                 product.IsWarrantyAvailable,
-                product.WarrantyMonths))
+                product.WarrantyMonths,
+                product.Media
+                    .OrderBy(media => media.SortOrder)
+                    .ThenBy(media => media.CreatedOn)
+                    .Select(media => new OnlineProductMediaItem(
+                        media.Id,
+                        media.MediaType,
+                        "/api/online-store/products/" + product.Id + "/media/" + media.Id + "/content",
+                        media.ThumbnailStorageKey == null ? null : "/api/online-store/products/" + product.Id + "/media/" + media.Id + "/content?thumbnail=true",
+                        media.ContentType,
+                        media.FileSize,
+                        media.IsPrimary,
+                        media.SortOrder))
+                    .ToArray()))
             .SingleOrDefaultAsync(cancellationToken);
 
         return item is null
             ? OperationResult<OnlineProductDetailItem>.Failure("Product not found.")
             : OperationResult<OnlineProductDetailItem>.Success(item);
+    }
+
+    public async Task<OperationResult<IReadOnlyCollection<OnlineProductMediaItem>>> GetStoreProductMediaAsync(
+        Guid productId,
+        CancellationToken cancellationToken)
+    {
+        var productExists = await dbContext.Products.AsNoTracking().AnyAsync(product =>
+            product.Id == productId && product.IsActive && product.AllowOnlineSale, cancellationToken);
+        if (!productExists)
+            return OperationResult<IReadOnlyCollection<OnlineProductMediaItem>>.Failure("Product not found.");
+
+        var media = await dbContext.ProductMedia.AsNoTracking()
+            .Where(item => item.ProductId == productId)
+            .OrderBy(item => item.SortOrder).ThenBy(item => item.CreatedOn)
+            .Select(item => new OnlineProductMediaItem(
+                item.Id,
+                item.MediaType,
+                "/api/online-store/products/" + productId + "/media/" + item.Id + "/content",
+                item.ThumbnailStorageKey == null ? null : "/api/online-store/products/" + productId + "/media/" + item.Id + "/content?thumbnail=true",
+                item.ContentType,
+                item.FileSize,
+                item.IsPrimary,
+                item.SortOrder))
+            .ToArrayAsync(cancellationToken);
+        return OperationResult<IReadOnlyCollection<OnlineProductMediaItem>>.Success(media);
+    }
+
+    public async Task<IReadOnlyCollection<OnlineStoreCategoryItem>> GetStoreCategoriesAsync(
+        CancellationToken cancellationToken) =>
+        await dbContext.Categories.AsNoTracking()
+            .Where(category => category.IsActive && dbContext.Products.Any(product =>
+                product.CategoryId == category.Id && product.IsActive && product.AllowOnlineSale))
+            .OrderBy(category => category.Name)
+            .Select(category => new OnlineStoreCategoryItem(category.Id, category.Name))
+            .ToArrayAsync(cancellationToken);
+
+    public async Task<OnlineStorePoliciesItem> GetStorePoliciesAsync(CancellationToken cancellationToken)
+    {
+        var settings = await dbContext.InvoiceSettings.AsNoTracking()
+            .OrderBy(item => item.Id)
+            .Select(item => new OnlineStorePoliciesItem(item.TermsAndConditions, item.ReturnPolicy))
+            .FirstOrDefaultAsync(cancellationToken);
+        return settings ?? new OnlineStorePoliciesItem(null, null);
     }
 
     public async Task<OperationResult<OnlineOrderDetailItem>> CreateOrderAsync(

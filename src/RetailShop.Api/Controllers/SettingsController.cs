@@ -46,6 +46,18 @@ public sealed class SettingsController(ISettingsService service) : ControllerBas
                 User.GetRequiredUserId(),
                 cancellationToken)));
 
+    [HttpGet("invoice-template")]
+    public async Task<ActionResult<ApiResponse<InvoiceTemplateSettingsResponse>>> GetInvoiceTemplate(CancellationToken cancellationToken) =>
+        Ok(ApiResponse<InvoiceTemplateSettingsResponse>.Success(await service.GetInvoiceTemplateAsync(cancellationToken)));
+
+    [HttpPut("invoice-template")]
+    [Authorize(Policy = Permissions.Settings.Manage)]
+    public async Task<ActionResult<ApiResponse<InvoiceTemplateSettingsResponse>>> SaveInvoiceTemplate(SaveInvoiceTemplateSettingsRequest request, CancellationToken cancellationToken)
+    {
+        var result = await service.SaveInvoiceTemplateAsync(request, User.GetRequiredUserId(), cancellationToken);
+        return result.Succeeded ? Ok(ApiResponse<InvoiceTemplateSettingsResponse>.Success(result.Value!)) : BadRequest(ApiResponse<InvoiceTemplateSettingsResponse>.Failure(result.Errors));
+    }
+
     [HttpGet("tax")]
     public async Task<ActionResult<ApiResponse<TaxSettingsResponse>>> GetTax(
         CancellationToken cancellationToken) =>

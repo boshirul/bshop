@@ -34,6 +34,7 @@
               "src/material-theme.scss",
               "src/app/shared/styles/transaction.scss",
               "src/app/layout/admin-layout.scss",
+                "src/app/features/online-store/online-store.scss",
               "src/styles.css"
             ]
           },
@@ -52,6 +53,15 @@
                 }
               ],
               "outputHashing": "all"
+            },
+            "iis": {
+              "baseHref": "/BShop/",
+              "fileReplacements": [
+                {
+                  "replace": "src/environments/environment.ts",
+                  "with": "src/environments/environment.iis.ts"
+                }
+              ]
             },
             "development": {
               "optimization": false,

@@ -5,29 +5,54 @@ import { API_BASE_URL } from '../../core/http/api-base-url.token';
 import {
   ApiResponse,
   OnlineOrderDetail,
+  OnlineProductDetailItem,
   OnlineProductListItem,
+  OnlineStoreCategoryItem,
+  OnlineStorePoliciesItem,
   PagedResult
 } from './online-store.models';
-import { ProductMediaItem } from '../products/product.models';
 
 @Injectable({ providedIn: 'root' })
 export class OnlineStoreApiService {
   private readonly http = inject(HttpClient);
   private readonly base = inject(API_BASE_URL);
 
-  products(search = '', page = 1, pageSize = 50):
+  products(search = '', categoryId: string | null = null, page = 1, pageSize = 24):
     Observable<PagedResult<OnlineProductListItem>> {
     let params = new HttpParams().set('page', page).set('pageSize', pageSize);
     if (search.trim()) params = params.set('search', search.trim());
-    return this.get('online-store/products', params);
+    if (categoryId) params = params.set('categoryId', categoryId);
+    return this.get<PagedResult<OnlineProductListItem>>('online-store/products', params).pipe(
+      map((result) => ({
+        ...result,
+        items: result.items.map((item) => ({
+          ...item,
+          imageUrl: this.resolveApiUrl(item.imageUrl)
+        }))
+      }))
+    );
   }
+
+  product(id: string): Observable<OnlineProductDetailItem> {
+    return this.get<OnlineProductDetailItem>(`online-store/products/${id}`).pipe(
+      map((item) => this.resolveProductMedia(item))
+    );
+  }
+
+  categories(): Observable<OnlineStoreCategoryItem[]> { return this.get('online-store/categories'); }
+  policies(): Observable<OnlineStorePoliciesItem> { return this.get('online-store/policies'); }
 
   checkout(body: unknown): Observable<OnlineOrderDetail> {
     return this.post('online-store/checkout', body);
   }
 
-  media(productId: string): Observable<ProductMediaItem[]> {
-    return this.get(`products/${productId}/media`);
+  media(productId: string): Observable<OnlineProductDetailItem['media']> {
+    return this.get<OnlineProductDetailItem['media']>(`online-store/products/${productId}/media`)
+      .pipe(map((items) => items.map((item) => ({
+        ...item,
+        url: this.resolveApiUrl(item.url) ?? item.url,
+        thumbnailUrl: this.resolveApiUrl(item.thumbnailUrl)
+      }))));
   }
 
   private get<T>(path: string, params?: HttpParams): Observable<T> {
@@ -45,5 +70,23 @@ export class OnlineStoreApiService {
       throw new Error(response.errors[0] ?? 'The request could not be completed.');
     }
     return response.data;
+  }
+
+  private resolveProductMedia(item: OnlineProductDetailItem): OnlineProductDetailItem {
+    return {
+      ...item,
+      imageUrl: this.resolveApiUrl(item.imageUrl),
+      media: item.media.map((media) => ({
+        ...media,
+        url: this.resolveApiUrl(media.url) ?? media.url,
+        thumbnailUrl: this.resolveApiUrl(media.thumbnailUrl)
+      }))
+    };
+  }
+
+  private resolveApiUrl(url: string | null): string | null {
+    if (!url?.startsWith('/api/')) return url;
+    const applicationBase = this.base.replace(/\/api$/, '');
+    return `${applicationBase}${url}`;
   }
 }

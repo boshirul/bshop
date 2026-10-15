@@ -16,6 +16,18 @@ export class AuthService {
   readonly currentUser = computed(() => this.session()?.user ?? null);
   readonly isAuthenticated = computed(() => this.session() !== null);
   readonly accessToken = computed(() => this.session()?.accessToken ?? null);
+  readonly avatarVersion = signal(0);
+
+  markAvatarChanged(): void {
+    const session = this.session();
+    if (session) {
+      this.saveSession({
+        ...session,
+        user: { ...session.user, avatarUrl: '/api/auth/profile/photo/content' }
+      });
+    }
+    this.avatarVersion.update(value => value + 1);
+  }
 
   login(request: LoginRequest): Observable<AuthResponse> {
     return this.http

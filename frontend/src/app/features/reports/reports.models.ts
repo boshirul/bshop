@@ -66,3 +66,8 @@ export interface OperationalReport {
   returns: StatusCountItem[];
   warrantyClaims: StatusCountItem[];
 }
+
+export type ManagementReportKind = 'DailySales' | 'MonthlySales' | 'YearlySales' | 'Profit' | 'Inventory' | 'CustomerDues';
+export interface ManagementReportCatalogueItem { kind: ManagementReportKind; displayName: string; filterType: 'date' | 'month' | 'year' | 'range' | 'search' | 'none'; permission: string; }
+export interface ManagementReportCell { display: string; numeric?: number | null; }
+export interface ManagementReportPreview { kind: ManagementReportKind; title: string; periodLabel: string; columns: { key: string; heading: string; isNumeric: boolean }[]; rows: { values: Record<string, ManagementReportCell> }[]; summary: { label: string; value: string; numeric?: number | null }[]; }

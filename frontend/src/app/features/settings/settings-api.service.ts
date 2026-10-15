@@ -5,6 +5,7 @@ import { API_BASE_URL } from '../../core/http/api-base-url.token';
 import {
   ApiResponse,
   InvoiceSettings,
+  InvoiceTemplateSettings,
   PaymentMethodItem,
   SavePaymentMethodRequest,
   ShopSettings,
@@ -32,6 +33,9 @@ export class SettingsApiService {
   saveInvoice(request: InvoiceSettings): Observable<InvoiceSettings> {
     return this.put<InvoiceSettings>('settings/invoice', request);
   }
+
+  getInvoiceTemplate(): Observable<InvoiceTemplateSettings> { return this.get<InvoiceTemplateSettings>('settings/invoice-template'); }
+  saveInvoiceTemplate(request: InvoiceTemplateSettings): Observable<InvoiceTemplateSettings> { return this.put<InvoiceTemplateSettings>('settings/invoice-template', request); }
 
   getTax(): Observable<TaxSettings> {
     return this.get<TaxSettings>('settings/tax');

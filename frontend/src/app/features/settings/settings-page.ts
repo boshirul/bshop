@@ -110,6 +110,21 @@ import { PaymentMethodItem } from './settings.models';
           </form>
         </mat-tab>
 
+        <mat-tab label="Invoice print configuration">
+          <form class="settings-form" [formGroup]="templateForm" (ngSubmit)="saveInvoiceTemplate()">
+            <h2>Controlled invoice presentation</h2>
+            <mat-form-field appearance="outline"><mat-label>Default print format</mat-label><mat-select formControlName="defaultFormat"><mat-option value="A4">A4 invoice</mat-option><mat-option value="Short">80 mm short receipt</mat-option></mat-select></mat-form-field>
+            <mat-form-field appearance="outline"><mat-label>Logo placement</mat-label><mat-select formControlName="logoPlacement"><mat-option value="Left">Left</mat-option><mat-option value="Center">Center</mat-option></mat-select></mat-form-field>
+            <div class="checks span-2"><mat-checkbox formControlName="a4Enabled">Enable A4 invoice</mat-checkbox><mat-checkbox formControlName="shortEnabled">Enable 80 mm receipt</mat-checkbox><mat-checkbox formControlName="showLogo">Show existing shop logo</mat-checkbox></div>
+            <mat-form-field appearance="outline" class="span-2"><mat-label>Header text</mat-label><input matInput formControlName="headerText" /></mat-form-field>
+            <mat-form-field appearance="outline" class="span-2"><mat-label>Footer text</mat-label><textarea matInput rows="2" formControlName="footerText"></textarea></mat-form-field>
+            <mat-form-field appearance="outline"><mat-label>Accent color</mat-label><input matInput formControlName="accentColor" /></mat-form-field>
+            <mat-form-field appearance="outline"><mat-label>Thermal margin (mm)</mat-label><input matInput type="number" min="0" max="10" formControlName="thermalMarginMm" /></mat-form-field>
+            <p class="transaction-helper span-2">Terms, return policy, and tax visibility use the Invoice settings above.</p>
+            @if (canManage()) { <button matButton="filled" type="submit" [disabled]="templateForm.invalid">Save print configuration</button> }
+          </form>
+        </mat-tab>
+
         <mat-tab label="Tax & system">
           <div class="settings-split">
             <form class="settings-form settings-section" [formGroup]="taxForm" (ngSubmit)="saveTax()">
@@ -259,6 +274,9 @@ export class SettingsPage implements OnInit {
     showTaxDetails: new FormControl(true, { nonNullable: true }),
     showQrCode: new FormControl(true, { nonNullable: true })
   });
+  protected readonly templateForm = new FormGroup({
+    defaultFormat: new FormControl<'A4' | 'Short'>('A4', { nonNullable: true }), a4Enabled: new FormControl(true, { nonNullable: true }), shortEnabled: new FormControl(true, { nonNullable: true }), showLogo: new FormControl(true, { nonNullable: true }), logoPlacement: new FormControl<'Left' | 'Center'>('Left', { nonNullable: true }), headerText: new FormControl('', { nonNullable: true }), footerText: new FormControl('', { nonNullable: true }), accentColor: new FormControl('#087CFF', { nonNullable: true, validators: [Validators.pattern(/^#[0-9A-Fa-f]{6}$/)] }), thermalMarginMm: new FormControl(3, { nonNullable: true, validators: [Validators.min(0), Validators.max(10)] })
+  });
   protected readonly taxForm = new FormGroup({
     taxName: new FormControl('VAT', { nonNullable: true, validators: [Validators.required] }),
     defaultRate: new FormControl(0, {
@@ -291,6 +309,7 @@ export class SettingsPage implements OnInit {
     forkJoin({
       shop: this.api.getShop(),
       invoice: this.api.getInvoice(),
+      template: this.api.getInvoiceTemplate(),
       tax: this.api.getTax(),
       system: this.api.getSystem(),
       payments: this.api.getPaymentMethods()
@@ -298,6 +317,7 @@ export class SettingsPage implements OnInit {
       next: (data) => {
         this.shopForm.patchValue(this.toFormValues(data.shop));
         this.invoiceForm.patchValue(this.toFormValues(data.invoice));
+        this.templateForm.patchValue(this.toFormValues(data.template));
         this.taxForm.patchValue(data.tax);
         this.systemForm.patchValue(data.system);
         this.paymentMethods.set(data.payments);
@@ -331,6 +351,12 @@ export class SettingsPage implements OnInit {
       termsAndConditions: value.termsAndConditions || null,
       returnPolicy: value.returnPolicy || null
     }).subscribe({ next: () => this.showSuccess('Invoice settings saved.'), error: (e) => this.showError(e) });
+  }
+
+  protected saveInvoiceTemplate(): void {
+    if (this.templateForm.invalid) return;
+    const value = this.templateForm.getRawValue();
+    this.api.saveInvoiceTemplate({ ...value, headerText: value.headerText || null, footerText: value.footerText || null, version: 0 }).subscribe({ next: () => this.showSuccess('Invoice print configuration saved.'), error: e => this.showError(e) });
   }
 
   protected saveTax(): void {

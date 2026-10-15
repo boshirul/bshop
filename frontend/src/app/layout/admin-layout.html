@@ -5,8 +5,8 @@
   </button>
   <a class="brand" routerLink="/dashboard" aria-label="BShop dashboard"><img class="brand-logo" src="assets/bshop-logo.png" alt="BShop" /></a>
   <span class="toolbar-spacer"></span>
-  <div class="user-profile"><span class="user-avatar" aria-hidden="true">{{ auth.currentUser()?.fullName?.slice(0, 1) ?? 'B' }}</span><span class="user-name">{{ auth.currentUser()?.fullName ?? 'BShop user' }}</span></div>
-  <button matButton class="sign-out-button" type="button" (click)="logout()">Sign out</button>
+  <button matButton class="user-profile" type="button" [matMenuTriggerFor]="accountMenu" aria-label="Open account menu"><span class="user-avatar" aria-hidden="true">@if (avatarUrl()) { <img [src]="avatarUrl()" alt="" /> } @else { {{ auth.currentUser()?.fullName?.slice(0, 1) ?? 'B' }} }</span><span class="user-name">{{ auth.currentUser()?.fullName ?? 'BShop user' }}</span></button>
+  <mat-menu #accountMenu="matMenu"><a mat-menu-item routerLink="/my-profile">My Profile</a><a mat-menu-item routerLink="/my-profile">Change Password</a><a mat-menu-item routerLink="/my-profile">Change Profile Photo</a><button mat-menu-item type="button" (click)="logout()">Sign out</button></mat-menu>
 </mat-toolbar>
 
 <mat-sidenav-container class="app-container">

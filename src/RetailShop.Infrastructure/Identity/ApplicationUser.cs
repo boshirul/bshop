@@ -12,6 +12,9 @@ public sealed class ApplicationUser : IdentityUser<Guid>
 
     public string FullName { get; set; } = string.Empty;
 
+    // A storage key under the application-managed persistent media root, never a client URL.
+    public string? AvatarStorageKey { get; set; }
+
     public bool IsActive { get; set; } = true;
 
     public DateTimeOffset CreatedOn { get; set; } = DateTimeOffset.UtcNow;

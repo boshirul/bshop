@@ -600,12 +600,20 @@ mat-table {
 app-sale-detail-page .print-invoice {
   display: none;
 }
+app-sale-detail-page .print-receipt { display: none; }
 
 /* The sale detail supplies a dedicated customer-copy document. Keep the application
    shell and dark application surfaces out of that printed document. */
 @page {
   background: #fff;
   size: A4 portrait;
+  margin: 0;
+}
+
+/* `auto` is the valid CSS page size here. The selected PDF/thermal driver owns
+   the physical 80 mm paper profile and its content-driven printable height. */
+@page bshop-thermal-receipt {
+  size: auto;
   margin: 0;
 }
 
@@ -689,6 +697,7 @@ app-sale-detail-page .print-invoice {
   }
 
   app-sale-detail-page .print-invoice__brand { color: #087cff; font-size: 22pt; font-weight: 800; margin: 0; }
+  app-sale-detail-page .print-invoice__logo { display:block; max-height:16mm; max-width:52mm; object-fit:contain; object-position:left; margin-block-end:3pt; }
   app-sale-detail-page .print-invoice__copy { color: #475467; font-size: 8pt; font-weight: 700; letter-spacing: .08em; margin: 2pt 0 0; text-transform: uppercase; }
   app-sale-detail-page .print-invoice__meta { display: grid; gap: 2pt; text-align: right; }
   app-sale-detail-page .print-invoice__meta strong { font-size: 12pt; }
@@ -712,4 +721,29 @@ app-sale-detail-page .print-invoice {
   app-sale-detail-page .print-invoice__grand { border-block: 1px solid #344054; font-size: 11pt; font-weight: 700; margin-block: 3pt; }
   app-sale-detail-page .print-invoice__notes { border-block-start: 1px solid #d9e2ec; margin-block-start: 16pt; padding-block-start: 10pt; }
   app-sale-detail-page .print-invoice__thank-you { border-block-start: 1px solid #d9e2ec; color: #475467; font-size: 8pt; margin-block-start: 20pt; padding-block-start: 10pt; text-align: center; }
+}
+
+/* Sales short receipt only: selected by the sale-detail print control. */
+@media print {
+  html[data-invoice-print-format="Short"] app-sale-detail-page .print-invoice { display: none !important; }
+  html[data-invoice-print-format="Short"] app-sale-detail-page .print-receipt { box-sizing: border-box; color: #111; display: block; font-family: Arial, sans-serif; font-size: 9pt; line-height: 1.25; margin: 0; padding: 3mm; width: 80mm; }
+  html[data-invoice-print-format="Short"] app-sale-detail-page .print-receipt,
+  html[data-invoice-print-format="Short"] app-sale-detail-page .print-receipt * { background: #fff !important; background-image: none !important; box-shadow: none !important; color: #111 !important; text-shadow: none !important; }
+  html[data-invoice-print-format="Short"] app-sale-detail-page .print-receipt { page: bshop-thermal-receipt; break-after: avoid-page; break-before: avoid-page; max-width: 80mm; min-height: 0; overflow: visible; }
+  html[data-invoice-print-format="Short"] app-sale-detail-page .print-receipt header { border-block-end: 1px dashed #111; display: grid; gap: 2pt; padding-block-end: 6pt; text-align: center; }
+  html[data-invoice-print-format="Short"] app-sale-detail-page .print-receipt header strong { font-size: 14pt; }
+  html[data-invoice-print-format="Short"] app-sale-detail-page .print-receipt__logo { display:block; margin-inline:auto; max-height:12mm; max-width:40mm; object-fit:contain; }
+  html[data-invoice-print-format="Short"] app-sale-detail-page .print-receipt p { margin: 7pt 0; }
+  html[data-invoice-print-format="Short"] app-sale-detail-page .print-receipt table { border-collapse: collapse; table-layout: fixed; width: 100%; }
+  html[data-invoice-print-format="Short"] app-sale-detail-page .print-receipt th { border-block: 1px dashed #111; font-size: 8pt; text-align: left; }
+  html[data-invoice-print-format="Short"] app-sale-detail-page .print-receipt tr { break-inside: avoid-page; page-break-inside: avoid; }
+  html[data-invoice-print-format="Short"] app-sale-detail-page .print-receipt th, html[data-invoice-print-format="Short"] app-sale-detail-page .print-receipt td { overflow-wrap: anywhere; padding: 4pt 1pt; vertical-align: top; }
+  html[data-invoice-print-format="Short"] app-sale-detail-page .print-receipt th:first-child { width: 56%; }
+  html[data-invoice-print-format="Short"] app-sale-detail-page .print-receipt th:not(:first-child), html[data-invoice-print-format="Short"] app-sale-detail-page .print-receipt td:not(:first-child) { text-align: right; white-space: nowrap; }
+  html[data-invoice-print-format="Short"] app-sale-detail-page .print-receipt small { display: block; font-size: 7pt; }
+  html[data-invoice-print-format="Short"] app-sale-detail-page .print-receipt dl { margin: 8pt 0; }
+  html[data-invoice-print-format="Short"] app-sale-detail-page .print-receipt dl div { display: flex; justify-content: space-between; padding: 2pt 0; }
+  html[data-invoice-print-format="Short"] app-sale-detail-page .print-receipt dd { margin: 0; }
+  html[data-invoice-print-format="Short"] app-sale-detail-page .print-receipt .grand { border-block: 1px solid #111; font-size: 11pt; font-weight: 700; margin-block: 3pt; }
+  html[data-invoice-print-format="Short"] app-sale-detail-page .print-receipt footer { border-block-start: 1px dashed #111; font-size: 8pt; margin-block-start: 8pt; padding-block-start: 6pt; text-align: center; }
 }

@@ -22,7 +22,14 @@ public sealed record SalesReportItem(
     decimal GrandTotal,
     decimal PaidAmount,
     decimal DueAmount,
-    decimal Profit);
+    decimal Profit,
+    decimal DiscountAmount = 0,
+    decimal TaxAmount = 0);
+
+public sealed record SalesItemReportItem(
+    Guid SaleId, string InvoiceNumber, DateTimeOffset SaleDate, string CustomerName,
+    string? CategoryName, string ProductCode, string ProductName, string UnitSymbol,
+    decimal Quantity, decimal UnitPrice, decimal LineDiscount, decimal TaxAmount, decimal LineAmount);
 
 public sealed record ProfitSummary(
     decimal Revenue,
@@ -62,6 +69,49 @@ public sealed record OperationalReport(
     IReadOnlyCollection<StatusCountItem<SalesReturnStatus>> Returns,
     IReadOnlyCollection<StatusCountItem<WarrantyClaimStatus>> WarrantyClaims);
 
+public enum ManagementReportKind
+{
+    DailySales,
+    MonthlySales,
+    YearlySales,
+    Profit,
+    Inventory,
+    CustomerDues,
+    ExpenseRegister,
+    MonthlyExpenses,
+    ExpenseCategorySummary
+}
+
+public sealed record ManagementReportRequest(
+    DateOnly? Date,
+    int? Month,
+    int? Year,
+    DateOnly? From,
+    DateOnly? To,
+    string? Search);
+
+public sealed record ManagementReportColumn(string Key, string Heading, bool IsNumeric = false);
+
+public sealed record ManagementReportCell(string Display, decimal? Numeric = null);
+
+public sealed record ManagementReportRow(IReadOnlyDictionary<string, ManagementReportCell> Values);
+
+public sealed record ManagementReportSummary(string Label, string Value, decimal? Numeric = null);
+
+public sealed record ManagementReportPreview(
+    ManagementReportKind Kind,
+    string Title,
+    string PeriodLabel,
+    IReadOnlyCollection<ManagementReportColumn> Columns,
+    IReadOnlyCollection<ManagementReportRow> Rows,
+    IReadOnlyCollection<ManagementReportSummary> Summary);
+
+public sealed record ManagementReportCatalogueItem(
+    ManagementReportKind Kind,
+    string DisplayName,
+    string FilterType,
+    string Permission);
+
 public interface IReportService
 {
     Task<DashboardSummary> GetDashboardAsync(CancellationToken cancellationToken);
@@ -70,6 +120,9 @@ public interface IReportService
         DateOnly from,
         DateOnly to,
         CancellationToken cancellationToken);
+
+    Task<IReadOnlyCollection<SalesItemReportItem>> GetSalesItemsAsync(
+        DateOnly from, DateOnly to, CancellationToken cancellationToken);
 
     Task<ProfitSummary> GetProfitAsync(
         DateOnly from,
@@ -84,4 +137,11 @@ public interface IReportService
         CancellationToken cancellationToken);
 
     Task<OperationalReport> GetOperationsAsync(CancellationToken cancellationToken);
+
+    Task<ManagementReportPreview> GetManagementReportAsync(
+        ManagementReportKind kind,
+        ManagementReportRequest request,
+        CancellationToken cancellationToken);
+
+    IReadOnlyCollection<ManagementReportCatalogueItem> GetManagementReportCatalogue();
 }

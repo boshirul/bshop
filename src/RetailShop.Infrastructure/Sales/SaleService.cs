@@ -1,4 +1,5 @@
 using System.Data;
+using System.Text.Json;
 using Microsoft.EntityFrameworkCore;
 using RetailShop.Application.Auditing;
 using RetailShop.Application.Common;
@@ -89,6 +90,14 @@ internal sealed class SaleService(
         return item is null
             ? OperationResult<SaleDetailItem>.Failure("Sale not found.")
             : OperationResult<SaleDetailItem>.Success(item);
+    }
+
+    public async Task<OperationResult<InvoicePrintRepresentation>> GetInvoicePrintAsync(Guid id, CancellationToken cancellationToken)
+    {
+        var sale = await GetSaleAsync(id, cancellationToken);
+        if (!sale.Succeeded) return OperationResult<InvoicePrintRepresentation>.Failure(sale.Errors);
+        var snapshot = await dbContext.SaleInvoiceSnapshots.AsNoTracking().SingleOrDefaultAsync(item => item.SaleId == id, cancellationToken);
+        return OperationResult<InvoicePrintRepresentation>.Success(new(sale.Value!, snapshot?.Content, snapshot?.TemplateVersion));
     }
 
     public async Task<OperationResult<SaleDetailItem>> CreateSaleAsync(
@@ -278,6 +287,26 @@ internal sealed class SaleService(
                 AddPaymentLedger(sale, payment, performedBy);
             }
         }
+
+        // Presentation-only issue-time snapshot. It is created in the same transaction as
+        // the sale and never participates in calculating financial values.
+        var shop = await dbContext.ShopSettings.AsNoTracking().FirstOrDefaultAsync(cancellationToken);
+        var template = await dbContext.InvoiceTemplateSettings.AsNoTracking().FirstOrDefaultAsync(cancellationToken);
+        var paymentNames = await dbContext.PaymentMethods.AsNoTracking()
+            .Where(method => paymentMethodIds.Contains(method.Id))
+            .ToDictionaryAsync(method => method.Id, method => method.Name, cancellationToken);
+        var products = await dbContext.Products.AsNoTracking().Where(p => sale.Details.Select(d => d.ProductId).Contains(p.Id))
+            .Include(p => p.Unit).ToDictionaryAsync(p => p.Id, cancellationToken);
+        var snapshot = JsonSerializer.Serialize(new
+        {
+            shop = new { shop?.ShopName, shop?.Address, shop?.Phone, shop?.Email, shop?.TaxRegistrationNumber, shop?.LogoUrl },
+            customer = customer is null ? null : new { customer.Name, customer.Phone, customer.Address },
+            template = new { Version = template?.Version ?? 1, HeaderText = template?.HeaderText, FooterText = template?.FooterText ?? shop?.ReceiptFooter, Terms = invoiceSetting?.TermsAndConditions, ReturnPolicy = invoiceSetting?.ReturnPolicy, ShowTaxDetails = invoiceSetting?.ShowTaxDetails ?? true, ShowLogo = template?.ShowLogo ?? true, LogoPlacement = template?.LogoPlacement.ToString() ?? "Left" },
+            sale = new { sale.InvoiceNumber, sale.SaleDate, Status = sale.Status.ToString(), sale.Notes, sale.Subtotal, sale.DiscountAmount, sale.VatAmount, sale.GrandTotal, sale.PaidAmount, DueAmount = sale.DueAmount },
+            items = sale.Details.Select(d => new { ProductCode = products[d.ProductId].ProductCode, ProductName = products[d.ProductId].Name, UnitSymbol = products[d.ProductId].Unit.Symbol, d.Quantity, d.UnitPrice, d.DiscountAmount, d.VatAmount, LineTotal = d.LineTotal }),
+            payments = sale.Payments.Select(p => new { PaymentMethodName = paymentNames[p.PaymentMethodId], p.Amount, p.PaidOn, p.ReferenceNumber, p.Notes })
+        });
+        dbContext.SaleInvoiceSnapshots.Add(new SaleInvoiceSnapshot(sale.Id, template?.Version ?? 1, snapshot) { CreatedBy = performedBy });
 
         var saveError = await SaveTransactionAsync(transaction, cancellationToken);
         if (saveError is not null)

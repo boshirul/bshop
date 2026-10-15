@@ -1,4 +1,7 @@
 using System.Security.Cryptography;
+using System.Globalization;
+using System.Text;
+using System.Text.RegularExpressions;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Hosting;
@@ -326,7 +329,10 @@ internal sealed class ProductService(
         Guid performedBy,
         CancellationToken cancellationToken)
     {
-        if (!await dbContext.Products.AnyAsync(item => item.Id == productId, cancellationToken))
+        var product = await dbContext.Products.SingleOrDefaultAsync(
+            item => item.Id == productId,
+            cancellationToken);
+        if (product is null)
         {
             return OperationResult<ProductMediaItem>.Failure("Product not found.");
         }
@@ -347,7 +353,12 @@ internal sealed class ProductService(
                 $"A product can have at most {limit} {classification.Type.ToString().ToLowerInvariant()} files.");
         }
 
-        var storageKey = await StoreUploadAsync(productId, upload, classification, cancellationToken);
+        var storageKey = await StoreUploadAsync(
+            product.Name,
+            upload,
+            classification,
+            isPoster: false,
+            cancellationToken);
         try
         {
             var hasPrimaryImage = await dbContext.ProductMedia.AnyAsync(
@@ -389,7 +400,7 @@ internal sealed class ProductService(
         Guid performedBy,
         CancellationToken cancellationToken)
     {
-        var media = await dbContext.ProductMedia.SingleOrDefaultAsync(
+        var media = await dbContext.ProductMedia.Include(item => item.Product).SingleOrDefaultAsync(
             item => item.Id == mediaId && item.ProductId == productId, cancellationToken);
         if (media is null) return OperationResult<ProductMediaItem>.Failure("Product media was not found.");
 
@@ -400,7 +411,12 @@ internal sealed class ProductService(
             return OperationResult<ProductMediaItem>.Failure("Replacement media must be the same type as the existing item.");
         }
 
-        var storageKey = await StoreUploadAsync(productId, upload, classification, cancellationToken);
+        var storageKey = await StoreUploadAsync(
+            media.Product.Name,
+            upload,
+            classification,
+            isPoster: false,
+            cancellationToken);
         var oldKey = media.StorageKey;
         var oldThumbnailKey = media.ThumbnailStorageKey;
         try
@@ -427,7 +443,7 @@ internal sealed class ProductService(
     public async Task<OperationResult<bool>> DeleteMediaAsync(
         Guid productId, Guid mediaId, Guid performedBy, CancellationToken cancellationToken)
     {
-        var media = await dbContext.ProductMedia.SingleOrDefaultAsync(
+        var media = await dbContext.ProductMedia.Include(item => item.Product).SingleOrDefaultAsync(
             item => item.Id == mediaId && item.ProductId == productId, cancellationToken);
         if (media is null) return OperationResult<bool>.Failure("Product media was not found.");
         var storageKey = media.StorageKey;
@@ -450,7 +466,7 @@ internal sealed class ProductService(
         Guid performedBy,
         CancellationToken cancellationToken)
     {
-        var media = await dbContext.ProductMedia.SingleOrDefaultAsync(
+        var media = await dbContext.ProductMedia.Include(item => item.Product).SingleOrDefaultAsync(
             item => item.Id == mediaId && item.ProductId == productId, cancellationToken);
         if (media is null || media.MediaType != ProductMediaType.Video)
             return OperationResult<ProductMediaItem>.Failure("A video must be selected before adding a poster image.");
@@ -460,7 +476,12 @@ internal sealed class ProductService(
         if (classification.Type != ProductMediaType.Image)
             return OperationResult<ProductMediaItem>.Failure("Video posters must be JPEG, PNG, or WebP images.");
 
-        var storageKey = await StoreUploadAsync(productId, upload, classification, cancellationToken);
+        var storageKey = await StoreUploadAsync(
+            media.Product.Name,
+            upload,
+            classification,
+            isPoster: true,
+            cancellationToken);
         var oldKey = media.ThumbnailStorageKey;
         try
         {
@@ -560,12 +581,22 @@ internal sealed class ProductService(
         return (default, string.Empty, "Only valid JPEG, PNG, WebP, and browser-compatible MP4 files are allowed.");
     }
 
-    private async Task<string> StoreUploadAsync(Guid productId, ProductMediaUpload upload,
-        (ProductMediaType Type, string ContentType, string? Error) classification, CancellationToken cancellationToken)
+    private async Task<string> StoreUploadAsync(
+        string productName,
+        ProductMediaUpload upload,
+        (ProductMediaType Type, string ContentType, string? Error) classification,
+        bool isPoster,
+        CancellationToken cancellationToken)
     {
         var extension = classification.Type == ProductMediaType.Video ? ".mp4" : classification.ContentType switch
         { "image/jpeg" => ".jpg", "image/png" => ".png", _ => ".webp" };
-        var storageKey = Path.Combine(productId.ToString("N"), $"{Guid.NewGuid():N}{extension}");
+        var category = isPoster
+            ? "posters"
+            : classification.Type == ProductMediaType.Video ? "videos" : "images";
+        var storageKey = Path.Combine(
+            "products",
+            category,
+            BuildStorageFileName(productName, extension));
         var destination = ResolvePath(storageKey);
         Directory.CreateDirectory(Path.GetDirectoryName(destination)!);
         var temporary = destination + ".upload";
@@ -587,6 +618,30 @@ internal sealed class ProductService(
             if (File.Exists(temporary)) File.Delete(temporary);
             throw;
         }
+    }
+
+    private static string BuildStorageFileName(string productName, string extension)
+    {
+        // Product names are trusted application data, but they are still converted
+        // to an ASCII, path-safe slug before becoming part of a filesystem name.
+        var normalized = productName.Normalize(NormalizationForm.FormKD);
+        var builder = new StringBuilder(normalized.Length);
+        foreach (var character in normalized)
+        {
+            if (CharUnicodeInfo.GetUnicodeCategory(character) == UnicodeCategory.NonSpacingMark)
+            {
+                continue;
+            }
+
+            builder.Append(char.IsLetterOrDigit(character) ? char.ToLowerInvariant(character) : '-');
+        }
+
+        var slug = Regex.Replace(builder.ToString(), "-+", "-").Trim('-');
+        if (string.IsNullOrWhiteSpace(slug)) slug = "product";
+        slug = slug[..Math.Min(slug.Length, 72)];
+        var timestamp = DateTimeOffset.UtcNow.ToString("yyyyMMdd_HHmmss_fff", CultureInfo.InvariantCulture);
+        var suffix = Guid.NewGuid().ToString("N")[..6];
+        return $"{slug}_{timestamp}_{suffix}{extension}";
     }
 
     private string ResolvePath(string storageKey)

@@ -9,6 +9,7 @@ import { provideRouter, withComponentInputBinding } from '@angular/router';
 import { routes } from './app.routes';
 import { authInterceptor } from './core/auth/auth.interceptor';
 import { API_BASE_URL } from './core/http/api-base-url.token';
+import { environment } from '../environments/environment';
 
 export const appConfig: ApplicationConfig = {
   providers: [
@@ -16,6 +17,6 @@ export const appConfig: ApplicationConfig = {
     provideAnimationsAsync(),
     provideHttpClient(withInterceptors([authInterceptor])),
     provideRouter(routes, withComponentInputBinding()),
-    { provide: API_BASE_URL, useValue: '/api' }
+    { provide: API_BASE_URL, useValue: environment.apiBaseUrl }
   ]
 };
