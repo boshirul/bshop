@@ -7,6 +7,7 @@ using RetailShop.Application.Sales;
 using RetailShop.Domain.Contacts;
 using RetailShop.Domain.OnlineOrders;
 using RetailShop.Domain.Products;
+using RetailShop.Domain.Inventory;
 using RetailShop.Domain.Sales;
 using RetailShop.Infrastructure.OnlineOrders;
 using RetailShop.Infrastructure.Persistence;
@@ -15,6 +16,89 @@ namespace RetailShop.Tests.OnlineOrders;
 
 public sealed class OnlineOrderSaleIntegrationTests
 {
+    [Fact]
+    public async Task CreateOrderAsync_ReplaysTheExistingOrderForTheSameIdempotencyKeyAndPayload()
+    {
+        await using var context = CreateContext();
+        var category = new Category("Electrical");
+        var unit = new Unit("Pieces", "pcs");
+        var product = new Product("PRD-IDEMPOTENT", "Solar Battery", category.Id, unit.Id)
+        {
+            SalePrice = 16_500m,
+            AllowOnlineSale = true
+        };
+        var balance = new StockBalance(product.Id);
+        balance.Increase(StockBucket.Available, 5m);
+        context.AddRange(category, unit, product, balance);
+        await context.SaveChangesAsync();
+        var service = new OnlineOrderService(context, new TestAuditService(), new CapturingSaleService(context));
+        var request = new CreateOnlineOrderRequest(OnlineOrderSource.Website, "Guest", "01700000000",
+            "Test address", 0m, null, [new CreateOnlineOrderLineRequest(product.Id, 1m)]);
+
+        var first = await service.CreateOrderAsync(request, null, "checkout-key-00000001", CancellationToken.None);
+        var replay = await service.CreateOrderAsync(request, null, "checkout-key-00000001", CancellationToken.None);
+
+        Assert.True(first.Succeeded);
+        Assert.True(replay.Succeeded);
+        Assert.Equal(first.Value!.Id, replay.Value!.Id);
+        Assert.Single(await context.OnlineOrders.ToArrayAsync());
+        Assert.Single(await context.OnlineOrderDetails.ToArrayAsync());
+    }
+
+    [Fact]
+    public async Task CreateOrderAsync_RejectsReusedIdempotencyKeyForDifferentPayload()
+    {
+        await using var context = CreateContext();
+        var category = new Category("Electrical");
+        var unit = new Unit("Pieces", "pcs");
+        var product = new Product("PRD-IDEMPOTENT-2", "Solar Battery", category.Id, unit.Id)
+        {
+            SalePrice = 16_500m,
+            AllowOnlineSale = true
+        };
+        var balance = new StockBalance(product.Id);
+        balance.Increase(StockBucket.Available, 5m);
+        context.AddRange(category, unit, product, balance);
+        await context.SaveChangesAsync();
+        var service = new OnlineOrderService(context, new TestAuditService(), new CapturingSaleService(context));
+        var original = new CreateOnlineOrderRequest(OnlineOrderSource.Website, "Guest", "01700000000",
+            "Test address", 0m, null, [new CreateOnlineOrderLineRequest(product.Id, 1m)]);
+        var changed = original with { DeliveryAddress = "Different address" };
+
+        Assert.True((await service.CreateOrderAsync(original, null, "checkout-key-00000002", CancellationToken.None)).Succeeded);
+        var conflict = await service.CreateOrderAsync(changed, null, "checkout-key-00000002", CancellationToken.None);
+
+        Assert.False(conflict.Succeeded);
+        Assert.Contains("different order information", conflict.Errors.Single(), StringComparison.OrdinalIgnoreCase);
+        Assert.Single(await context.OnlineOrders.ToArrayAsync());
+    }
+
+    [Fact]
+    public async Task CreateOrderAsync_RejectsQuantityThatIsNoLongerAvailableWithoutCreatingAnOrder()
+    {
+        await using var context = CreateContext();
+        var category = new Category("Electrical");
+        var unit = new Unit("Pieces", "pcs");
+        var product = new Product("PRD-000002", "Solar Battery 100W", category.Id, unit.Id)
+        {
+            SalePrice = 16_500m,
+            AllowOnlineSale = true
+        };
+        var balance = new StockBalance(product.Id);
+        balance.Increase(StockBucket.Available, 1m);
+        context.AddRange(category, unit, product, balance);
+        await context.SaveChangesAsync();
+
+        var service = new OnlineOrderService(context, new TestAuditService(), new CapturingSaleService(context));
+        var result = await service.CreateOrderAsync(new CreateOnlineOrderRequest(
+            OnlineOrderSource.Website, "Guest", "01700000000", "Test address", 0m, null,
+            [new CreateOnlineOrderLineRequest(product.Id, 2m)]), null, "test-idempotency-key-0001", CancellationToken.None);
+
+        Assert.False(result.Succeeded);
+        Assert.Contains("requested quantity", result.Errors.Single(), StringComparison.OrdinalIgnoreCase);
+        Assert.Empty(await context.OnlineOrders.ToArrayAsync());
+    }
+
     [Fact]
     public async Task PostSaleAsync_LinksDeliveredOrder_UsesSavedPriceAndDoesNotIssueStockAgain()
     {

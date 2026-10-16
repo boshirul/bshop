@@ -17,7 +17,7 @@ namespace RetailShop.Infrastructure.Persistence.Migrations
         {
 #pragma warning disable 612, 618
             modelBuilder
-                .HasAnnotation("ProductVersion", "10.0.5")
+                .HasAnnotation("ProductVersion", "10.0.13")
                 .HasAnnotation("Relational:MaxIdentifierLength", 63);
 
             NpgsqlModelBuilderExtensions.UseIdentityByDefaultColumns(modelBuilder);
@@ -1022,6 +1022,10 @@ namespace RetailShop.Infrastructure.Persistence.Migrations
                     b.Property<DateTimeOffset?>("CancelledOn")
                         .HasColumnType("timestamp with time zone");
 
+                    b.Property<string>("CheckoutFingerprint")
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)");
+
                     b.Property<DateTimeOffset?>("ConfirmedOn")
                         .HasColumnType("timestamp with time zone");
 
@@ -1062,6 +1066,10 @@ namespace RetailShop.Infrastructure.Persistence.Migrations
                     b.Property<decimal>("DeliveryCharge")
                         .HasPrecision(18, 2)
                         .HasColumnType("numeric(18,2)");
+
+                    b.Property<string>("IdempotencyKey")
+                        .HasMaxLength(128)
+                        .HasColumnType("character varying(128)");
 
                     b.Property<bool>("IsDeleted")
                         .HasColumnType("boolean");
@@ -1105,6 +1113,9 @@ namespace RetailShop.Infrastructure.Persistence.Migrations
                     b.HasKey("Id");
 
                     b.HasIndex("CustomerPhone");
+
+                    b.HasIndex("IdempotencyKey")
+                        .IsUnique();
 
                     b.HasIndex("OrderNumber")
                         .IsUnique();

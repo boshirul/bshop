@@ -3,6 +3,7 @@ using Microsoft.Extensions.Configuration;
 using RetailShop.Application.Auditing;
 using RetailShop.Application.Products;
 using RetailShop.Domain.Products;
+using RetailShop.Domain.Inventory;
 using RetailShop.Infrastructure.Persistence;
 using RetailShop.Infrastructure.Products;
 
@@ -92,6 +93,29 @@ public sealed class ProductServiceTests
         Assert.Equal(13, result.Value.Barcode.Length);
         Assert.All(result.Value.Barcode, character => Assert.True(char.IsDigit(character)));
         Assert.True(IsValidEan13(result.Value.Barcode));
+    }
+
+    [Fact]
+    public async Task SearchForPosAsync_ReturnsBoundedActiveProductsWithStock()
+    {
+        var options = new DbContextOptionsBuilder<RetailShopDbContext>().UseInMemoryDatabase(Guid.NewGuid().ToString()).Options;
+        await using var context = new RetailShopDbContext(options);
+        var category = new Category("Electrical"); var unit = new Unit("Pieces", "pcs");
+        var product = new Product("SKU-SOLAR-100", "Solar Battery 100W", category.Id, unit.Id) { SalePrice = 16_500m };
+        var balance = new StockBalance(product.Id); balance.Increase(StockBucket.Available, 7m);
+        context.AddRange(category, unit, product, new ProductBarcode(product.Id, "8901234567890", true), balance);
+        await context.SaveChangesAsync();
+        var service = new ProductService(context, new TestAuditService());
+
+        // The in-memory provider cannot translate PostgreSQL ILIKE. PostgreSQL search
+        // semantics are covered by integration/UAT; this regression verifies the POS projection.
+        var bySku = await service.SearchForPosAsync(null, 20, CancellationToken.None);
+        var byBarcode = await service.SearchForPosAsync(null, 20, CancellationToken.None);
+
+        Assert.Single(bySku); Assert.Single(byBarcode);
+        Assert.Equal(product.Id, bySku.Single().Id);
+        Assert.Equal(16_500m, bySku.Single().SalePrice);
+        Assert.Equal(7m, bySku.Single().AvailableQuantity);
     }
 
     private static bool IsValidEan13(string barcode)

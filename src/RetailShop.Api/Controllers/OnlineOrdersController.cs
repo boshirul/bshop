@@ -47,11 +47,13 @@ public sealed class OnlineOrdersController(IOnlineOrderService service) : Contro
     [Authorize(Policy = Permissions.OnlineOrders.Manage)]
     public async Task<ActionResult<ApiResponse<OnlineOrderDetailItem>>> Create(
         CreateOnlineOrderRequest request,
+        [FromHeader(Name = "Idempotency-Key")] string? idempotencyKey,
         CancellationToken cancellationToken)
     {
         var result = await service.CreateOrderAsync(
             request,
             User.GetRequiredUserId(),
+            idempotencyKey ?? Guid.NewGuid().ToString("N"),
             cancellationToken);
         return result.Succeeded
             ? CreatedAtAction(

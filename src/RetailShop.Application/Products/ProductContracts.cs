@@ -88,6 +88,21 @@ public sealed record ProductListItem(
     bool IsActive,
     string? ImageUrl);
 
+/// <summary>Small, bounded projection used by the POS product finder.</summary>
+public sealed record PosProductSearchItem(
+    Guid Id,
+    string ProductCode,
+    string Barcode,
+    string Name,
+    string? BrandName,
+    string? ModelName,
+    string? VariantName,
+    string UnitSymbol,
+    decimal SalePrice,
+    decimal AvailableQuantity,
+    bool IsSerialRequired,
+    string? ImageUrl);
+
 public sealed record ProductImageItem(
     Guid Id,
     string Url,
@@ -231,6 +246,10 @@ public interface IProductService
         bool? isActive,
         int page,
         int pageSize,
+        CancellationToken cancellationToken);
+    Task<IReadOnlyCollection<PosProductSearchItem>> SearchForPosAsync(
+        string? search,
+        int limit,
         CancellationToken cancellationToken);
     Task<OperationResult<ProductDetail>> GetProductAsync(
         Guid id,

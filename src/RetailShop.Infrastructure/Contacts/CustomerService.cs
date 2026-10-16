@@ -25,10 +25,16 @@ internal sealed class CustomerService(
         if (!string.IsNullOrWhiteSpace(search))
         {
             var term = search.Trim();
+            var normalizedPhone = NormalizePhone(term);
             query = query.Where(customer =>
                 EF.Functions.ILike(customer.Name, $"%{term}%") ||
                 EF.Functions.ILike(customer.CustomerCode, $"%{term}%") ||
                 EF.Functions.ILike(customer.Phone, $"%{term}%") ||
+                customer.Phone.Replace(" ", string.Empty)
+                    .Replace("-", string.Empty)
+                    .Replace("(", string.Empty)
+                    .Replace(")", string.Empty)
+                    .Contains(normalizedPhone) ||
                 (customer.Email != null && EF.Functions.ILike(customer.Email, $"%{term}%")));
         }
 
@@ -91,6 +97,17 @@ internal sealed class CustomerService(
             return OperationResult<CustomerListItem>.Failure(errors);
         }
 
+        var normalizedPhone = NormalizePhone(request.Phone);
+        if (await dbContext.Customers.AnyAsync(
+                customer => customer.Phone.Replace(" ", string.Empty)
+                    .Replace("-", string.Empty)
+                    .Replace("(", string.Empty)
+                    .Replace(")", string.Empty) == normalizedPhone,
+                cancellationToken))
+        {
+            return OperationResult<CustomerListItem>.Failure("A customer with this mobile number already exists.");
+        }
+
         var customer = new Customer(
             await GenerateCodeAsync(cancellationToken),
             request.Name,
@@ -121,6 +138,17 @@ internal sealed class CustomerService(
         if (errors.Count > 0)
         {
             return OperationResult<CustomerListItem>.Failure(errors);
+        }
+
+        var normalizedPhone = NormalizePhone(request.Phone);
+        if (await dbContext.Customers.AnyAsync(
+                candidate => candidate.Id != id && candidate.Phone.Replace(" ", string.Empty)
+                    .Replace("-", string.Empty)
+                    .Replace("(", string.Empty)
+                    .Replace(")", string.Empty) == normalizedPhone,
+                cancellationToken))
+        {
+            return OperationResult<CustomerListItem>.Failure("A customer with this mobile number already exists.");
         }
 
         Apply(customer, request);
@@ -206,7 +234,7 @@ internal sealed class CustomerService(
     private static void Apply(Customer customer, SaveCustomerRequest request)
     {
         customer.Name = request.Name.Trim();
-        customer.Phone = request.Phone.Trim();
+        customer.Phone = NormalizePhone(request.Phone);
         customer.Email = Clean(request.Email);
         customer.Address = Clean(request.Address);
         customer.Notes = Clean(request.Notes);
@@ -228,4 +256,7 @@ internal sealed class CustomerService(
 
     private static string? Clean(string? value) =>
         string.IsNullOrWhiteSpace(value) ? null : value.Trim();
+
+    private static string NormalizePhone(string phone) =>
+        phone.Trim().Replace(" ", string.Empty).Replace("-", string.Empty).Replace("(", string.Empty).Replace(")", string.Empty);
 }

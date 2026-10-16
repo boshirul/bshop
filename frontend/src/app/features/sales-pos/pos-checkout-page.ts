@@ -1,26 +1,30 @@
 import { CurrencyPipe } from '@angular/common';
 import { HttpErrorResponse } from '@angular/common/http';
-import { Component, computed, inject, OnInit, signal } from '@angular/core';
+import { Component, computed, DestroyRef, inject, OnInit, signal } from '@angular/core';
 import { FormArray, FormControl, FormGroup, ReactiveFormsModule, Validators } from '@angular/forms';
 import { MatButtonModule } from '@angular/material/button';
 import { MatCardModule } from '@angular/material/card';
 import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatInputModule } from '@angular/material/input';
 import { MatSelectModule } from '@angular/material/select';
+import { MatAutocompleteModule } from '@angular/material/autocomplete';
+import { MatDialog, MatDialogModule } from '@angular/material/dialog';
 import { Router, RouterLink } from '@angular/router';
 import { AuthService } from '../../core/auth/auth.service';
 import { permissions } from '../../core/auth/permissions';
 import { ContactApiService } from '../contacts/contact-api.service';
 import { CustomerItem } from '../contacts/contact.models';
-import { InventoryApiService } from '../inventory/inventory-api.service';
 import { ProductApiService } from '../products/product-api.service';
 import { ProductMediaPreviewService } from '../products/product-media-preview.service';
-import { ProductListItem } from '../products/product.models';
+import { PosProductSearchItem, ProductListItem } from '../products/product.models';
 import { SettingsApiService } from '../settings/settings-api.service';
 import { PaymentMethodItem } from '../settings/settings.models';
 import { OperationNotificationService } from '../../core/notifications/operation-notification.service';
 import { SalesApiService } from './sales-api.service';
 import { priceForProductChange } from '../../shared/utils/line-product-pricing';
+import { QuickCustomerDialog } from './quick-customer-dialog';
+import { catchError, debounceTime, distinctUntilChanged, of, Subject, switchMap } from 'rxjs';
+import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 
 type LineForm = FormGroup<{
   productId: FormControl<string>;
@@ -39,7 +43,7 @@ type PaymentForm = FormGroup<{
 @Component({
   selector: 'app-pos-checkout-page',
   imports: [CurrencyPipe, ReactiveFormsModule, RouterLink, MatButtonModule, MatCardModule,
-    MatFormFieldModule, MatInputModule, MatSelectModule],
+    MatFormFieldModule, MatInputModule, MatSelectModule, MatAutocompleteModule, MatDialogModule],
   template: `
     <header class="page-header">
       <div>
@@ -59,13 +63,15 @@ type PaymentForm = FormGroup<{
         <mat-card-content class="sale-header">
           <mat-form-field appearance="outline">
             <mat-label>Customer (optional for paid sale)</mat-label>
-            <mat-select formControlName="customerId">
-              <mat-option value="">Walk-in customer</mat-option>
-              @for (customer of customers(); track customer.id) {
-                <mat-option [value]="customer.id">{{ customer.name }} · {{ customer.customerCode }}</mat-option>
-              }
-            </mat-select>
+            <input matInput [formControl]="customerSearch" [matAutocomplete]="customerAutocomplete" placeholder="Walk-in customer" />
+            <button matSuffix matButton type="button" (click)="selectWalkIn()">Walk-in</button>
+            <mat-autocomplete #customerAutocomplete="matAutocomplete" (optionSelected)="selectCustomer($event.option.value)">
+              @if (customerLoading()) { <mat-option disabled>Searching customers…</mat-option> }
+              @for (customer of customers(); track customer.id) { <mat-option [value]="customer"><strong>{{ customer.name }}</strong> · {{ customer.customerCode }} · {{ customer.phone }}</mat-option> }
+              @if (!customerLoading() && customerSearch.value.trim() && !customers().length) { <mat-option disabled>No customer found</mat-option> }
+            </mat-autocomplete>
           </mat-form-field>
+          @if (canManageCustomers) { <button matButton type="button" class="quick-customer" (click)="openQuickCustomer()">New customer</button> }
           <mat-form-field appearance="outline">
             <mat-label>Sale date</mat-label>
             <input matInput type="date" formControlName="saleDate" />
@@ -80,6 +86,15 @@ type PaymentForm = FormGroup<{
       <mat-card appearance="outlined" class="transaction-panel">
         <mat-card-header>
           <mat-card-title>Cart</mat-card-title><span class="spacer"></span>
+          <mat-form-field appearance="outline" class="pos-search">
+            <mat-label>Find product</mat-label>
+            <input matInput [formControl]="productSearch" [matAutocomplete]="productAutocomplete" placeholder="Name, SKU, barcode, brand, or model" />
+            <mat-autocomplete #productAutocomplete="matAutocomplete" (optionSelected)="addSearchProduct($event.option.value)">
+              @if (productLoading()) { <mat-option disabled>Searching products…</mat-option> }
+              @for (product of productResults(); track product.id) { <mat-option [value]="product"><span class="pos-product-option">@if (thumbnailUrl(product.id); as imageUrl) { <img [src]="imageUrl" alt="" (error)="showImagePlaceholder($event)" /> } @else { <span class="pos-product-placeholder" aria-hidden="true">▧</span> }<span><strong>{{ product.name }}</strong> · {{ product.productCode }} @if (product.variantName) { · {{ product.variantName }} }<small>Stock {{ product.availableQuantity }} {{ product.unitSymbol }} · {{ product.salePrice | currency:'BDT':'symbol-narrow' }}</small></span></span></mat-option> }
+              @if (!productLoading() && productSearch.value.trim() && !productResults().length) { <mat-option disabled>No products found</mat-option> }
+            </mat-autocomplete>
+          </mat-form-field>
           <div class="barcode-box">
             <input [formControl]="barcode" placeholder="Scan barcode or enter product code"
               (keyup.enter)="addByBarcode()" />
@@ -172,7 +187,7 @@ type PaymentForm = FormGroup<{
     @use './sales.scss';
     form, .lines, .payments { display:grid; gap:var(--bshop-space-4); }
     .spacer { flex:1; }
-    .sale-header { display:grid; gap:var(--bshop-space-3); grid-template-columns:1fr 1fr; }
+    .sale-header { display:grid; gap:var(--bshop-space-3); grid-template-columns:1fr auto 1fr; }
     .span-all { grid-column:1/-1; }
     mat-form-field { width:100%; }
     .barcode-box { align-items:center; background:var(--bshop-color-bg); border:1px solid var(--bshop-color-border); border-radius:var(--bshop-radius-md); display:flex; margin-inline-end:var(--bshop-space-2); }
@@ -199,7 +214,6 @@ type PaymentForm = FormGroup<{
       position:sticky; z-index:2;
     }
     .checkout-bar strong { font-size:1.25rem; }.checkout-bar button { min-height:3rem; }.checkout-bar .due strong { color:var(--bshop-color-danger); }
-    .pos-product-option{align-items:center;display:flex;gap:var(--bshop-space-2)}.pos-product-option img,.pos-product-placeholder{background:var(--bshop-color-bg);border-radius:.25rem;height:1.6rem;object-fit:cover;width:1.6rem}.pos-product-placeholder{align-items:center;color:var(--bshop-color-text-muted);display:inline-flex;justify-content:center}.pos-product-option img:not([hidden]) + .pos-product-placeholder{display:none}.pos-product-option img[hidden]{display:none}
     @media(width <= 1050px){.sale-line{grid-template-columns:repeat(2,1fr)}}
     @media(width <= 700px){
       .sale-header,.sale-line,.payment-line{grid-template-columns:1fr}.span-all{grid-column:auto}
@@ -211,14 +225,15 @@ type PaymentForm = FormGroup<{
 })
 export class PosCheckoutPage implements OnInit {
   private readonly salesApi = inject(SalesApiService);
+  private readonly destroyRef = inject(DestroyRef);
   private readonly auth = inject(AuthService);
   private readonly contactsApi = inject(ContactApiService);
   private readonly productApi = inject(ProductApiService);
   private readonly mediaPreviews = inject(ProductMediaPreviewService);
-  private readonly inventoryApi = inject(InventoryApiService);
   private readonly settingsApi = inject(SettingsApiService);
   private readonly router = inject(Router);
   private readonly notifications = inject(OperationNotificationService);
+  private readonly dialog = inject(MatDialog);
   protected readonly customers = signal<CustomerItem[]>([]);
   protected readonly products = signal<ProductListItem[]>([]);
   protected readonly paymentMethods = signal<PaymentMethodItem[]>([]);
@@ -227,9 +242,17 @@ export class PosCheckoutPage implements OnInit {
   protected readonly errorMessage = signal('');
   protected readonly thumbnails = signal<Record<string, string | null>>({});
   protected readonly barcode = new FormControl('', { nonNullable: true });
+  protected readonly productSearch = new FormControl('', { nonNullable: true });
+  protected readonly customerSearch = new FormControl('', { nonNullable: true });
+  protected readonly productResults = signal<PosProductSearchItem[]>([]);
+  protected readonly productLoading = signal(false);
+  protected readonly customerLoading = signal(false);
   protected readonly canChangePrice = this.auth.hasPermission(permissions.sales.changePrice);
   protected readonly canDiscount = this.auth.hasPermission(permissions.sales.discount);
   protected readonly canSellOnDue = this.auth.hasPermission(permissions.sales.sellOnDue);
+  protected readonly canManageCustomers = this.auth.hasPermission(permissions.customers.manage);
+  private readonly productSearchTerms = new Subject<string>();
+  private readonly customerSearchTerms = new Subject<string>();
   private readonly selectedProductIds = new WeakMap<LineForm, string>();
   private readonly formRevision = signal(0);
   protected readonly form = new FormGroup({
@@ -261,37 +284,87 @@ export class PosCheckoutPage implements OnInit {
   protected get payments(): FormArray<PaymentForm> { return this.form.controls.payments; }
 
   ngOnInit(): void {
-    this.contactsApi.get('customers', '', 1, 100).subscribe({
-      next: result => this.customers.set(result.items as CustomerItem[]),
-      error: () => this.errorMessage.set('Customers could not be loaded.')
+    this.productSearchTerms.pipe(
+      debounceTime(200), distinctUntilChanged(),
+      switchMap(term => {
+        this.productLoading.set(true);
+        return this.productApi.searchForPos(term, 20).pipe(catchError(() => {
+          this.errorMessage.set('Products could not be searched.'); return of([] as PosProductSearchItem[]);
+        }));
+      }), takeUntilDestroyed(this.destroyRef)
+    ).subscribe(items => { this.productLoading.set(false); this.productResults.set(items); this.loadSearchThumbnails(items); });
+    this.customerSearchTerms.pipe(
+      debounceTime(200), distinctUntilChanged(),
+      switchMap(term => {
+        if (!term.trim()) { this.customerLoading.set(false); return of({ items: [] as CustomerItem[] }); }
+        this.customerLoading.set(true);
+        return this.contactsApi.get('customers', term, 1, 20).pipe(
+          catchError(() => { this.errorMessage.set('Customers could not be searched.'); return of({ items: [] as CustomerItem[] }); })
+        );
+      }), takeUntilDestroyed(this.destroyRef)
+    ).subscribe(result => { this.customerLoading.set(false); this.customers.set(result.items as CustomerItem[]); });
+    this.productSearch.valueChanges.pipe(takeUntilDestroyed(this.destroyRef)).subscribe(term => this.productSearchTerms.next(term));
+    this.customerSearch.valueChanges.pipe(takeUntilDestroyed(this.destroyRef)).subscribe(term => {
+      this.form.controls.customerId.setValue('');
+      this.customerSearchTerms.next(term);
     });
-    this.productApi.getProducts('', 1, 100).subscribe({
-      next: result => {
-        const products = result.items.filter(product => product.isActive);
-        this.products.set(products);
-        this.loadThumbnails(products);
-      }
-    });
-    this.inventoryApi.getStock('current', '', 1, 100).subscribe({
-      next: result => this.stock.set(new Map(result.items.map(item => [item.productId, item.availableQuantity])))
-    });
+    this.productSearchTerms.next('');
     this.settingsApi.getPaymentMethods().subscribe({
       next: methods => this.paymentMethods.set(methods.filter(method => method.isActive))
     });
-    this.form.valueChanges.subscribe(() => this.formRevision.update(value => value + 1));
+    this.form.valueChanges.pipe(takeUntilDestroyed(this.destroyRef)).subscribe(() => this.formRevision.update(value => value + 1));
   }
 
   protected available(productId: string): number { return this.stock().get(productId) ?? 0; }
 
-  private loadThumbnails(products: ProductListItem[]): void {
-    this.thumbnails.set({});
+  private loadSearchThumbnails(products: PosProductSearchItem[]): void {
     for (const product of products) {
-      if (!product.imageUrl) continue;
-      this.mediaPreviews.preview(product.imageUrl).subscribe((imageUrl) => {
-        if (!this.products().some((item) => item.id === product.id)) return;
-        this.thumbnails.update((current) => ({ ...current, [product.id]: imageUrl }));
+      if (!product.imageUrl || this.thumbnails()[product.id] !== undefined) continue;
+      this.mediaPreviews.preview(product.imageUrl).subscribe(imageUrl => {
+        this.thumbnails.update(current => ({ ...current, [product.id]: imageUrl }));
       });
     }
+  }
+
+  protected selectCustomer(customer: CustomerItem): void {
+    this.form.controls.customerId.setValue(customer.id);
+    this.customerSearch.setValue(`${customer.name} · ${customer.customerCode}`, { emitEvent: false });
+  }
+
+  protected selectWalkIn(): void {
+    this.form.controls.customerId.setValue('');
+    this.customerSearch.setValue('', { emitEvent: false });
+    this.customers.set([]);
+  }
+
+  protected openQuickCustomer(): void {
+    this.dialog.open(QuickCustomerDialog, { width: 'min(32rem, calc(100vw - 2rem))', autoFocus: 'first-tabbable' })
+      .afterClosed().subscribe((customer?: CustomerItem) => { if (customer) this.selectCustomer(customer); });
+  }
+
+  protected addSearchProduct(product: PosProductSearchItem): void {
+    this.mergeSearchProduct(product);
+    const existing = this.items.controls.find(line => line.controls.productId.value === product.id);
+    if (existing) existing.controls.quantity.setValue(existing.controls.quantity.value + 1);
+    else {
+      const blank = this.items.length === 1 && !this.items.at(0).controls.productId.value;
+      if (blank) this.applyProductToLine(this.items.at(0), product.id);
+      else this.addLine(this.products().find(item => item.id === product.id));
+    }
+    this.productSearch.setValue('', { emitEvent: false });
+    this.productResults.set([]);
+  }
+
+  private mergeSearchProduct(product: PosProductSearchItem): void {
+    const item: ProductListItem = {
+      id: product.id, productCode: product.productCode, barcode: product.barcode, name: product.name,
+      categoryName: '', brandName: product.brandName, unitSymbol: product.unitSymbol, purchasePrice: 0,
+      salePrice: product.salePrice, averageCost: 0, isWarrantyAvailable: false,
+      isSerialRequired: product.isSerialRequired, allowOnlineSale: false, isActive: true, imageUrl: product.imageUrl
+    };
+    this.products.update(items => items.some(existing => existing.id === item.id) ? items.map(existing => existing.id === item.id ? item : existing) : [...items, item]);
+    this.stock.update(current => new Map(current).set(product.id, product.availableQuantity));
+    this.loadSearchThumbnails([product]);
   }
 
   protected requiresSerial(productId: string): boolean {
@@ -314,21 +387,13 @@ export class PosCheckoutPage implements OnInit {
   protected addByBarcode(): void {
     const query = this.barcode.value.trim().toLowerCase();
     if (!query) return;
-    const product = this.products().find(item =>
-      item.barcode.toLowerCase() === query || item.productCode.toLowerCase() === query);
-    if (!product) {
-      this.errorMessage.set(`No product matched "${this.barcode.value.trim()}".`);
-      return;
-    }
-    const existing = this.items.controls.find(line => line.controls.productId.value === product.id);
-    if (existing) existing.controls.quantity.setValue(existing.controls.quantity.value + 1);
-    else {
-      const blank = this.items.length === 1 && !this.items.at(0).controls.productId.value;
-      if (blank) this.applyProductToLine(this.items.at(0), product.id);
-      else this.addLine(product);
-    }
-    this.barcode.setValue('');
-    this.errorMessage.set('');
+    this.productApi.searchForPos(query, 10).subscribe({
+      next: products => {
+        const product = products.find(item => item.barcode.toLowerCase() === query || item.productCode.toLowerCase() === query);
+        if (!product) { this.errorMessage.set(`No product matched "${this.barcode.value.trim()}".`); return; }
+        this.addSearchProduct(product); this.barcode.setValue(''); this.errorMessage.set('');
+      }, error: () => this.errorMessage.set('Product lookup failed. Please try again.')
+    });
   }
   protected lineTotal(line: LineForm): number {
     const value = line.getRawValue();

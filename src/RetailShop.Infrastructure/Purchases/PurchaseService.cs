@@ -109,7 +109,7 @@ internal sealed class PurchaseService(
         var purchase = new Purchase(
             GenerateNumber("PUR"),
             request.SupplierId,
-            request.PurchaseDate,
+            request.PurchaseDate.ToUniversalTime(),
             request.SupplierInvoiceNumber,
             request.Notes)
         {
@@ -230,7 +230,7 @@ internal sealed class PurchaseService(
             purchase.Id,
             request.PaymentMethodId,
             request.Amount,
-            request.PaidOn,
+            request.PaidOn.ToUniversalTime(),
             performedBy,
             request.ReferenceNumber,
             request.Notes);
@@ -282,7 +282,7 @@ internal sealed class PurchaseService(
         var purchaseReturn = new PurchaseReturn(
             GenerateNumber("PRN"),
             purchase.Id,
-            request.ReturnDate,
+            request.ReturnDate.ToUniversalTime(),
             request.Reason,
             performedBy,
             request.Notes);

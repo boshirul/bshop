@@ -98,8 +98,8 @@ internal sealed class QuotationService(
         var quotation = new Quotation(
             GenerateNumber(),
             request.CustomerId,
-            request.QuotationDate,
-            request.ValidUntil,
+            request.QuotationDate.ToUniversalTime(),
+            request.ValidUntil.ToUniversalTime(),
             request.Notes,
             request.Terms)
         {
@@ -160,8 +160,8 @@ internal sealed class QuotationService(
         {
             quotation.Update(
                 request.CustomerId,
-                request.QuotationDate,
-                request.ValidUntil,
+                request.QuotationDate.ToUniversalTime(),
+                request.ValidUntil.ToUniversalTime(),
                 request.Notes,
                 request.Terms);
             dbContext.QuotationDetails.RemoveRange(quotation.Details);
@@ -323,7 +323,7 @@ internal sealed class QuotationService(
         var sale = new Sale(
             invoiceNumber,
             quotation.CustomerId,
-            request.SaleDate,
+            request.SaleDate.ToUniversalTime(),
             request.Notes ?? $"Converted from {quotation.QuotationNumber}")
         {
             CreatedBy = performedBy

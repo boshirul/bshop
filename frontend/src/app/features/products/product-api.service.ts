@@ -10,6 +10,7 @@ import {
   ProductImageItem,
   ProductMediaItem,
   ProductListItem,
+  PosProductSearchItem,
   ProductModelItem,
   SaveProductRequest,
   SubCategoryItem,
@@ -44,6 +45,15 @@ export class ProductApiService {
           }))
         }))
       );
+  }
+
+  searchForPos(search = '', limit = 20): Observable<PosProductSearchItem[]> {
+    const params = new HttpParams().set('search', search.trim()).set('limit', limit);
+    return this.http.get<ApiResponse<PosProductSearchItem[]>>(`${this.apiBaseUrl}/products/pos-search`, { params })
+      .pipe(map((response) => this.requireData(response)), map((items) => items.map((item) => ({
+        ...item,
+        imageUrl: this.resolveApiUrl(item.imageUrl)
+      }))));
   }
 
   getProduct(id: string): Observable<ProductDetail> {

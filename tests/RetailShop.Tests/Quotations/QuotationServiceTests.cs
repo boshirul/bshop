@@ -83,6 +83,31 @@ public sealed class QuotationServiceTests
         Assert.Empty(await context.StockTransactions.ToArrayAsync());
     }
 
+    [Fact]
+    public async Task CreateAsync_NormalizesDhakaDatesToUtcBeforePersistence()
+    {
+        await using var context = CreateContext();
+        var category = new Category("Electrical");
+        var unit = new Unit("Pieces", "pcs");
+        var customer = new Customer("CUS-000002", "Dhaka Customer", "01700000001");
+        var product = new Product("PRD-000002", "Battery", category.Id, unit.Id) { SalePrice = 100m };
+        context.AddRange(category, unit, customer, product);
+        await context.SaveChangesAsync();
+
+        var issue = new DateTimeOffset(2026, 10, 16, 0, 0, 0, TimeSpan.FromHours(6));
+        var validUntil = issue.AddDays(7);
+        var result = await new QuotationService(context, new TestAuditService()).CreateAsync(
+            new SaveQuotationRequest(customer.Id, issue, validUntil, null, null,
+                [new SaveQuotationItemRequest(product.Id, 1m, 100m, 0m, 0m)]),
+            Guid.NewGuid(), false, false, CancellationToken.None);
+
+        Assert.True(result.Succeeded);
+        var quotation = await context.Quotations.SingleAsync();
+        Assert.Equal(TimeSpan.Zero, quotation.QuotationDate.Offset);
+        Assert.Equal(TimeSpan.Zero, quotation.ValidUntil.Offset);
+        Assert.Equal(issue.UtcDateTime, quotation.QuotationDate.UtcDateTime);
+    }
+
     private static RetailShopDbContext CreateContext() =>
         new(new DbContextOptionsBuilder<RetailShopDbContext>()
             .UseInMemoryDatabase(Guid.NewGuid().ToString())

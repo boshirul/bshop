@@ -17,7 +17,9 @@ public sealed class OnlineOrder : AuditableEntity
         string deliveryAddress,
         decimal deliveryCharge,
         string? notes,
-        Guid? createdBy = null)
+        Guid? createdBy = null,
+        string? idempotencyKey = null,
+        string? checkoutFingerprint = null)
     {
         if (string.IsNullOrWhiteSpace(orderNumber))
         {
@@ -50,6 +52,13 @@ public sealed class OnlineOrder : AuditableEntity
         DeliveryCharge = deliveryCharge;
         Notes = Clean(notes);
         CreatedBy = createdBy;
+        IdempotencyKey = Clean(idempotencyKey);
+        CheckoutFingerprint = Clean(checkoutFingerprint);
+        if ((IdempotencyKey is null) != (CheckoutFingerprint is null))
+        {
+            throw new ArgumentException(
+                "Checkout idempotency key and request fingerprint must be supplied together.");
+        }
         History.Add(new OnlineOrderHistory(
             Id,
             OnlineOrderHistoryAction.Created,
@@ -69,6 +78,8 @@ public sealed class OnlineOrder : AuditableEntity
     public string? CourierName { get; private set; }
     public string? TrackingNumber { get; private set; }
     public string? Notes { get; private set; }
+    public string? IdempotencyKey { get; private set; }
+    public string? CheckoutFingerprint { get; private set; }
     public DateTimeOffset OrderedOn { get; private set; } = DateTimeOffset.UtcNow;
     public DateTimeOffset? ConfirmedOn { get; private set; }
     public DateTimeOffset? CancelledOn { get; private set; }

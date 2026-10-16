@@ -47,6 +47,8 @@ internal sealed class ProductService(
             query = query.Where(product =>
                 EF.Functions.ILike(product.Name, $"%{term}%") ||
                 EF.Functions.ILike(product.ProductCode, $"%{term}%") ||
+                (product.Brand != null && EF.Functions.ILike(product.Brand.Name, $"%{term}%")) ||
+                (product.ProductModel != null && EF.Functions.ILike(product.ProductModel.Name, $"%{term}%")) ||
                 product.Barcodes.Any(barcode =>
                     EF.Functions.ILike(barcode.Value, $"%{term}%")));
         }
@@ -99,6 +101,46 @@ internal sealed class ProductService(
             .ToArrayAsync(cancellationToken);
 
         return new PagedResult<ProductListItem>(items, page, pageSize, totalCount);
+    }
+
+    public async Task<IReadOnlyCollection<PosProductSearchItem>> SearchForPosAsync(
+        string? search,
+        int limit,
+        CancellationToken cancellationToken)
+    {
+        limit = Math.Clamp(limit, 1, 50);
+        var query = dbContext.Products.AsNoTracking().Where(product => product.IsActive);
+        if (!string.IsNullOrWhiteSpace(search))
+        {
+            var term = search.Trim();
+            query = query.Where(product =>
+                EF.Functions.ILike(product.Name, $"%{term}%") ||
+                EF.Functions.ILike(product.ProductCode, $"%{term}%") ||
+                (product.Brand != null && EF.Functions.ILike(product.Brand.Name, $"%{term}%")) ||
+                (product.ProductModel != null && EF.Functions.ILike(product.ProductModel.Name, $"%{term}%")) ||
+                product.Barcodes.Any(barcode => EF.Functions.ILike(barcode.Value, $"%{term}%")));
+        }
+
+        return await query
+            .OrderBy(product => product.Name)
+            .ThenBy(product => product.ProductCode)
+            .Take(limit)
+            .Select(product => new PosProductSearchItem(
+                product.Id,
+                product.ProductCode,
+                product.Barcodes.Where(barcode => barcode.IsPrimary).Select(barcode => barcode.Value).FirstOrDefault() ?? string.Empty,
+                product.Name,
+                product.Brand == null ? null : product.Brand.Name,
+                product.ProductModel == null ? null : product.ProductModel.Name,
+                product.VariantName,
+                product.Unit.Symbol,
+                product.SalePrice,
+                dbContext.StockBalances.Where(balance => balance.ProductId == product.Id).Select(balance => balance.AvailableQuantity).FirstOrDefault(),
+                product.IsSerialRequired,
+                product.Media.Where(media => media.MediaType == ProductMediaType.Image && media.IsPrimary)
+                    .Select(media => "/api/products/" + product.Id + "/media/" + media.Id + "/content")
+                    .FirstOrDefault() ?? product.Images.Where(image => image.IsPrimary).Select(image => image.Url).FirstOrDefault()))
+            .ToArrayAsync(cancellationToken);
     }
 
     public async Task<OperationResult<ProductDetail>> GetProductAsync(

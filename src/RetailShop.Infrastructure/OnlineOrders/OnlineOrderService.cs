@@ -1,4 +1,7 @@
 using System.Data;
+using System.Globalization;
+using System.Security.Cryptography;
+using System.Text;
 using Microsoft.EntityFrameworkCore;
 using RetailShop.Application.Auditing;
 using RetailShop.Application.Common;
@@ -166,12 +169,32 @@ internal sealed class OnlineOrderService(
     public async Task<OperationResult<OnlineOrderDetailItem>> CreateOrderAsync(
         CreateOnlineOrderRequest request,
         Guid? performedBy,
+        string idempotencyKey,
         CancellationToken cancellationToken)
     {
+        if (!IsValidIdempotencyKey(idempotencyKey))
+        {
+            return OperationResult<OnlineOrderDetailItem>.Failure(
+                "The checkout request key is invalid. Start checkout again and retry.");
+        }
         var validationError = ValidateOrder(request);
         if (validationError is not null)
         {
             return OperationResult<OnlineOrderDetailItem>.Failure(validationError);
+        }
+        var fingerprint = CreateRequestFingerprint(request);
+        var existing = await dbContext.OnlineOrders
+            .IgnoreQueryFilters()
+            .AsNoTracking()
+            .Where(item => item.IdempotencyKey == idempotencyKey)
+            .Select(item => new { item.Id, item.CheckoutFingerprint })
+            .SingleOrDefaultAsync(cancellationToken);
+        if (existing is not null)
+        {
+            return existing.CheckoutFingerprint == fingerprint
+                ? await GetOrderAsync(existing.Id, cancellationToken)
+                : OperationResult<OnlineOrderDetailItem>.Failure(
+                    "This checkout request key was already used with different order information. Start checkout again.");
         }
 
         var order = new OnlineOrder(
@@ -182,7 +205,9 @@ internal sealed class OnlineOrderService(
             request.DeliveryAddress,
             request.DeliveryCharge,
             request.Notes,
-            performedBy);
+            performedBy,
+            idempotencyKey,
+            fingerprint);
 
         foreach (var line in request.Items)
         {
@@ -205,6 +230,20 @@ internal sealed class OnlineOrderService(
                     "One or more online products are unavailable.");
             }
 
+            // A browser cart is not a reservation. Recheck the current available
+            // balance at submission time, while leaving reservation and deduction
+            // to the established confirmation/delivery workflow.
+            var availableQuantity = await dbContext.StockBalances
+                .AsNoTracking()
+                .Where(balance => balance.ProductId == product.Id)
+                .Select(balance => (decimal?)balance.AvailableQuantity)
+                .SingleOrDefaultAsync(cancellationToken) ?? 0;
+            if (availableQuantity < line.Quantity)
+            {
+                return OperationResult<OnlineOrderDetailItem>.Failure(
+                    "One or more products no longer have the requested quantity available.");
+            }
+
             order.AddDetail(
                 product.Id,
                 line.Quantity,
@@ -213,7 +252,31 @@ internal sealed class OnlineOrderService(
         }
 
         dbContext.OnlineOrders.Add(order);
-        await dbContext.SaveChangesAsync(cancellationToken);
+        try
+        {
+            await dbContext.SaveChangesAsync(cancellationToken);
+        }
+        catch (DbUpdateException)
+        {
+            // A concurrent request may win the unique-key race. Return only the
+            // order for the identical request, never another constraint failure.
+            dbContext.ChangeTracker.Clear();
+            var concurrent = await dbContext.OnlineOrders
+                .IgnoreQueryFilters()
+                .AsNoTracking()
+                .Where(item => item.IdempotencyKey == idempotencyKey)
+                .Select(item => new { item.Id, item.CheckoutFingerprint })
+                .SingleOrDefaultAsync(cancellationToken);
+            if (concurrent is not null)
+            {
+                return concurrent.CheckoutFingerprint == fingerprint
+                    ? await GetOrderAsync(concurrent.Id, cancellationToken)
+                    : OperationResult<OnlineOrderDetailItem>.Failure(
+                        "This checkout request key was already used with different order information. Start checkout again.");
+            }
+            return OperationResult<OnlineOrderDetailItem>.Failure(
+                "The order could not be saved. Please retry checkout.");
+        }
         await auditService.WriteAsync(
             "Create",
             "OnlineOrder",
@@ -527,6 +590,27 @@ internal sealed class OnlineOrderService(
             return "Delivery charge cannot be negative.";
         }
         return null;
+    }
+
+    private static bool IsValidIdempotencyKey(string key) =>
+        key.Length is >= 16 and <= 128 && key.All(character =>
+            char.IsAsciiLetterOrDigit(character) || character is '-' or '_');
+
+    private static string CreateRequestFingerprint(CreateOnlineOrderRequest request)
+    {
+        var canonical = new StringBuilder();
+        canonical.Append((int)request.Source).Append('|')
+            .Append(request.CustomerName.Trim()).Append('|')
+            .Append(request.CustomerPhone.Trim()).Append('|')
+            .Append(request.DeliveryAddress.Trim()).Append('|')
+            .Append(request.DeliveryCharge.ToString("0.00", CultureInfo.InvariantCulture)).Append('|')
+            .Append(request.Notes?.Trim() ?? string.Empty);
+        foreach (var line in request.Items.OrderBy(item => item.ProductId))
+        {
+            canonical.Append('|').Append(line.ProductId.ToString("N"))
+                .Append(':').Append(line.Quantity.ToString("0.###", CultureInfo.InvariantCulture));
+        }
+        return Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(canonical.ToString())));
     }
 
     private async Task<OnlineOrder?> LoadOrderAsync(

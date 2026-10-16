@@ -55,6 +55,8 @@ public static class DependencyInjection
         this IServiceCollection services,
         IConfiguration configuration)
     {
+        services.AddSingleton(TimeProvider.System);
+
         var connectionString = configuration.GetConnectionString(DatabaseConnectionName)
             ?? throw new InvalidOperationException(
                 $"Connection string '{DatabaseConnectionName}' is not configured.");

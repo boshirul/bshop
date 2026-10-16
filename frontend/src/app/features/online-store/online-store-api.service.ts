@@ -1,4 +1,4 @@
-import { HttpClient, HttpParams } from '@angular/common/http';
+import { HttpClient, HttpHeaders, HttpParams } from '@angular/common/http';
 import { inject, Injectable } from '@angular/core';
 import { map, Observable } from 'rxjs';
 import { API_BASE_URL } from '../../core/http/api-base-url.token';
@@ -42,8 +42,8 @@ export class OnlineStoreApiService {
   categories(): Observable<OnlineStoreCategoryItem[]> { return this.get('online-store/categories'); }
   policies(): Observable<OnlineStorePoliciesItem> { return this.get('online-store/policies'); }
 
-  checkout(body: unknown): Observable<OnlineOrderDetail> {
-    return this.post('online-store/checkout', body);
+  checkout(body: unknown, idempotencyKey: string): Observable<OnlineOrderDetail> {
+    return this.post('online-store/checkout', body, new HttpHeaders({ 'Idempotency-Key': idempotencyKey }));
   }
 
   media(productId: string): Observable<OnlineProductDetailItem['media']> {
@@ -60,8 +60,8 @@ export class OnlineStoreApiService {
       .pipe(map(response => this.data(response)));
   }
 
-  private post<T>(path: string, body: unknown): Observable<T> {
-    return this.http.post<ApiResponse<T>>(`${this.base}/${path}`, body)
+  private post<T>(path: string, body: unknown, headers?: HttpHeaders): Observable<T> {
+    return this.http.post<ApiResponse<T>>(`${this.base}/${path}`, body, { headers })
       .pipe(map(response => this.data(response)));
   }
 

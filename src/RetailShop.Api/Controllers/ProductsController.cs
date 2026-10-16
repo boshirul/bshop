@@ -13,6 +13,14 @@ namespace RetailShop.Api.Controllers;
 [Authorize(Policy = Permissions.Products.View)]
 public sealed class ProductsController(IProductService service) : ControllerBase
 {
+    [HttpGet("pos-search")]
+    public async Task<ActionResult<ApiResponse<IReadOnlyCollection<PosProductSearchItem>>>> PosSearch(
+        [FromQuery] string? search,
+        [FromQuery] int limit = 20,
+        CancellationToken cancellationToken = default) =>
+        Ok(ApiResponse<IReadOnlyCollection<PosProductSearchItem>>.Success(
+            await service.SearchForPosAsync(search, limit, cancellationToken)));
+
     [HttpGet]
     public async Task<ActionResult<ApiResponse<PagedResult<ProductListItem>>>> Get(
         [FromQuery] string? search,

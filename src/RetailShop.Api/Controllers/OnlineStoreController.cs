@@ -85,15 +85,23 @@ public sealed class OnlineStoreController(IOnlineOrderService service, IProductS
     [EnableRateLimiting("Checkout")]
     public async Task<ActionResult<ApiResponse<OnlineOrderDetailItem>>> Checkout(
         CreateOnlineOrderRequest request,
+        [FromHeader(Name = "Idempotency-Key")] string? idempotencyKey,
         CancellationToken cancellationToken)
     {
-        var result = await service.CreateOrderAsync(request, null, cancellationToken);
+        if (string.IsNullOrWhiteSpace(idempotencyKey))
+        {
+            return BadRequest(ApiResponse<OnlineOrderDetailItem>.Failure(
+                ["A checkout idempotency key is required."]));
+        }
+        var result = await service.CreateOrderAsync(request, null, idempotencyKey, cancellationToken);
         return result.Succeeded
             ? CreatedAtAction(
                 nameof(OnlineOrdersController.Detail),
                 "OnlineOrders",
                 new { id = result.Value!.Id },
                 ApiResponse<OnlineOrderDetailItem>.Success(result.Value))
+            : result.Errors.Any(error => error.Contains("different order information", StringComparison.OrdinalIgnoreCase))
+                ? Conflict(ApiResponse<OnlineOrderDetailItem>.Failure(result.Errors))
             : BadRequest(ApiResponse<OnlineOrderDetailItem>.Failure(result.Errors));
     }
 }

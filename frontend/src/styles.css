@@ -784,3 +784,8 @@ app-sale-detail-page .print-receipt { display: none; }
   html[data-invoice-print-format="Short"] app-sale-detail-page .print-receipt .grand { border-block: 1px solid #111; font-size: 11pt; font-weight: 700; margin-block: 3pt; }
   html[data-invoice-print-format="Short"] app-sale-detail-page .print-receipt footer { border-block-start: 1px dashed #111; font-size: 8pt; margin-block-start: 8pt; padding-block-start: 6pt; text-align: center; }
 }
+/* Protected product previews in the POS finder are resolved through HttpClient. */
+app-pos-checkout-page .pos-product-option { align-items: center; display: flex; gap: var(--bshop-space-2); }
+app-pos-checkout-page .pos-product-option img,
+app-pos-checkout-page .pos-product-placeholder { background: var(--bshop-color-bg); border-radius: .25rem; height: 1.6rem; object-fit: cover; width: 1.6rem; }
+app-pos-checkout-page .pos-product-placeholder { align-items: center; color: var(--bshop-color-text-muted); display: inline-flex; justify-content: center; }

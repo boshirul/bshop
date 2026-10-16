@@ -1,6 +1,7 @@
 using Microsoft.EntityFrameworkCore;
 using RetailShop.Application.Auditing;
 using RetailShop.Application.Contacts;
+using RetailShop.Domain.Contacts;
 using RetailShop.Infrastructure.Contacts;
 using RetailShop.Infrastructure.Persistence;
 
@@ -52,6 +53,33 @@ public sealed class ContactServiceTests
 
         Assert.True(result.Succeeded);
         Assert.StartsWith("SUP-", result.Value!.SupplierCode);
+    }
+
+    [Fact]
+    public async Task CreateCustomer_RejectsAnExistingNormalizedMobileNumber()
+    {
+        await using var context = CreateContext();
+        var service = new CustomerService(context, new TestAuditService());
+        Assert.True((await service.CreateAsync(new SaveCustomerRequest("Amina", "01700-000000", null, null, null, 0, true), Guid.NewGuid(), CancellationToken.None)).Succeeded);
+
+        var duplicate = await service.CreateAsync(new SaveCustomerRequest("Amina Duplicate", "01700 000000", null, null, null, 0, true), Guid.NewGuid(), CancellationToken.None);
+
+        Assert.False(duplicate.Succeeded);
+        Assert.Equal("A customer with this mobile number already exists.", duplicate.Errors.Single());
+    }
+
+    [Fact]
+    public async Task CreateCustomer_RejectsLegacyFormattedMobileNumber()
+    {
+        await using var context = CreateContext();
+        context.Customers.Add(new Customer("CUS-LEGACY", "Legacy Customer", "01700-000000"));
+        await context.SaveChangesAsync();
+        var service = new CustomerService(context, new TestAuditService());
+
+        var duplicate = await service.CreateAsync(new SaveCustomerRequest("Duplicate", "01700 000000", null, null, null, 0, true), Guid.NewGuid(), CancellationToken.None);
+
+        Assert.False(duplicate.Succeeded);
+        Assert.Equal("A customer with this mobile number already exists.", duplicate.Errors.Single());
     }
 
     private static RetailShopDbContext CreateContext()

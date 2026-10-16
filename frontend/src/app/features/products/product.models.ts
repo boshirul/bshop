@@ -40,6 +40,21 @@ export interface ProductListItem {
   imageUrl: string | null;
 }
 
+export interface PosProductSearchItem {
+  id: string;
+  productCode: string;
+  barcode: string;
+  name: string;
+  brandName: string | null;
+  modelName: string | null;
+  variantName: string | null;
+  unitSymbol: string;
+  salePrice: number;
+  availableQuantity: number;
+  isSerialRequired: boolean;
+  imageUrl: string | null;
+}
+
 export interface ProductImageItem {
   id: string;
   url: string;

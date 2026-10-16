@@ -153,6 +153,7 @@ public interface IOnlineOrderService
     Task<OperationResult<OnlineOrderDetailItem>> CreateOrderAsync(
         CreateOnlineOrderRequest request,
         Guid? performedBy,
+        string idempotencyKey,
         CancellationToken cancellationToken);
 
     Task<PagedResult<OnlineOrderListItem>> GetOrdersAsync(

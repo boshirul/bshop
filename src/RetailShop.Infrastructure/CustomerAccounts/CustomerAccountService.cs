@@ -183,6 +183,8 @@ internal sealed class CustomerAccountService(
         int pageSize,
         CancellationToken cancellationToken)
     {
+        from = from?.ToUniversalTime();
+        to = to?.ToUniversalTime();
         page = Math.Max(1, page);
         pageSize = Math.Clamp(pageSize, 1, 100);
         var query = dbContext.CustomerReceipts.AsNoTracking();
@@ -300,7 +302,7 @@ internal sealed class CustomerAccountService(
             customer.Id,
             request.PaymentMethodId,
             request.Amount,
-            request.ReceivedOn,
+            request.ReceivedOn.ToUniversalTime(),
             performedBy,
             request.ReferenceNumber,
             request.Notes);
@@ -325,7 +327,7 @@ internal sealed class CustomerAccountService(
                 sale.Id,
                 request.PaymentMethodId,
                 amount,
-                request.ReceivedOn,
+                request.ReceivedOn.ToUniversalTime(),
                 performedBy,
                 receipt.ReceiptNumber,
                 request.Notes);
@@ -370,6 +372,8 @@ internal sealed class CustomerAccountService(
         DateTimeOffset? to,
         CancellationToken cancellationToken)
     {
+        from = from?.ToUniversalTime();
+        to = to?.ToUniversalTime();
         var customer = await dbContext.Customers
             .AsNoTracking()
             .Where(item => item.Id == customerId)
@@ -455,7 +459,7 @@ internal sealed class CustomerAccountService(
         var referenceNumber = GenerateNumber("ADJ");
         dbContext.CustomerLedgerEntries.Add(new CustomerLedgerEntry(
             request.CustomerId,
-            request.AdjustmentDate,
+            request.AdjustmentDate.ToUniversalTime(),
             CustomerLedgerEntryType.ManualAdjustment,
             request.Direction == CustomerAdjustmentDirection.Debit
                 ? request.Amount

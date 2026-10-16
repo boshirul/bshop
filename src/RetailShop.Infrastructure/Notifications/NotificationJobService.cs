@@ -1,4 +1,6 @@
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Configuration;
+using Npgsql;
 using RetailShop.Application.Common;
 using RetailShop.Application.Notifications;
 using RetailShop.Domain.Notifications;
@@ -9,7 +11,10 @@ using RetailShop.Infrastructure.Persistence;
 
 namespace RetailShop.Infrastructure.Notifications;
 
-public sealed class NotificationJobService(RetailShopDbContext dbContext)
+public sealed class NotificationJobService(
+    RetailShopDbContext dbContext,
+    IConfiguration configuration,
+    TimeProvider timeProvider)
     : INotificationJobService
 {
     public async Task<NotificationGenerationResult> GenerateDailyNotificationsAsync()
@@ -158,9 +163,28 @@ public sealed class NotificationJobService(RetailShopDbContext dbContext)
         Func<CancellationToken, Task<int>> action,
         CancellationToken cancellationToken)
     {
-        var run = new BackgroundJobRun(jobName, $"{jobName}:{DateTimeOffset.UtcNow:yyyyMMddHHmmss}");
+        var runKey = BuildRunKey(jobName, timeProvider.GetUtcNow());
+        if (await dbContext.BackgroundJobRuns.AnyAsync(
+                item => item.RunKey == runKey,
+                cancellationToken))
+        {
+            return new NotificationGenerationResult(jobName, 0);
+        }
+
+        var run = new BackgroundJobRun(jobName, runKey);
         dbContext.BackgroundJobRuns.Add(run);
-        await dbContext.SaveChangesAsync(cancellationToken);
+        try
+        {
+            await dbContext.SaveChangesAsync(cancellationToken);
+        }
+        catch (DbUpdateException exception) when (IsRunKeyConflict(exception))
+        {
+            // Hangfire may deliver the same recurring invocation more than once.
+            // The unique RunKey makes the first execution authoritative; a duplicate
+            // is an idempotent no-op, not a failed job that should be retried.
+            dbContext.Entry(run).State = EntityState.Detached;
+            return new NotificationGenerationResult(jobName, 0);
+        }
 
         try
         {
@@ -355,8 +379,11 @@ public sealed class NotificationJobService(RetailShopDbContext dbContext)
 
     private async Task<int> GenerateDailySalesSummaryCoreAsync(CancellationToken cancellationToken)
     {
-        var day = DateTimeOffset.UtcNow.Date.AddDays(-1);
-        var nextDay = day.AddDays(1);
+        var timeZone = GetBusinessTimeZone();
+        var localToday = TimeZoneInfo.ConvertTime(timeProvider.GetUtcNow(), timeZone).Date;
+        var localDay = localToday.AddDays(-1);
+        var day = BusinessDayStartUtc(localDay, timeZone);
+        var nextDay = BusinessDayStartUtc(localDay.AddDays(1), timeZone);
         var sales = await dbContext.Sales
             .AsNoTracking()
             .Where(sale =>
@@ -380,9 +407,9 @@ public sealed class NotificationJobService(RetailShopDbContext dbContext)
         return await AddIfMissingAsync(
             NotificationKind.DailySalesSummary,
             NotificationChannel.Internal,
-            $"daily-sales:{day:yyyyMMdd}",
-            $"Daily sales summary: {day:dd MMM yyyy}",
-            $"Sales summary for {day:dd MMM yyyy}: {sales.Count} invoice(s), revenue BDT {sales.Revenue:0.00}, collected BDT {sales.Paid:0.00}.",
+            $"daily-sales:{localDay:yyyyMMdd}",
+            $"Daily sales summary: {localDay:dd MMM yyyy}",
+            $"Sales summary for {localDay:dd MMM yyyy}: {sales.Count} invoice(s), revenue BDT {sales.Revenue:0.00}, collected BDT {sales.Paid:0.00}.",
             "Manager",
             null,
             cancellationToken);
@@ -416,4 +443,37 @@ public sealed class NotificationJobService(RetailShopDbContext dbContext)
         await dbContext.SaveChangesAsync(cancellationToken);
         return 1;
     }
+
+    private TimeZoneInfo GetBusinessTimeZone()
+    {
+        var timeZoneId = configuration["BusinessTimeZone:Id"] ?? "Asia/Dhaka";
+        try
+        {
+            return TimeZoneInfo.FindSystemTimeZoneById(timeZoneId);
+        }
+        catch (TimeZoneNotFoundException)
+        {
+            return TimeZoneInfo.Utc;
+        }
+        catch (InvalidTimeZoneException)
+        {
+            return TimeZoneInfo.Utc;
+        }
+    }
+
+    private static DateTimeOffset BusinessDayStartUtc(DateTime date, TimeZoneInfo timeZone) =>
+        new DateTimeOffset(DateTime.SpecifyKind(date.Date, DateTimeKind.Unspecified),
+            timeZone.GetUtcOffset(date.Date)).ToUniversalTime();
+
+    private static string BuildRunKey(string jobName, DateTimeOffset now) =>
+        $"{jobName}:{now:yyyyMMddHHmmss}";
+
+    private static bool IsRunKeyConflict(Exception exception) =>
+        exception switch
+        {
+            PostgresException { SqlState: PostgresErrorCodes.UniqueViolation,
+                ConstraintName: "IX_BackgroundJobRuns_RunKey" } => true,
+            { InnerException: not null } => IsRunKeyConflict(exception.InnerException),
+            _ => false
+        };
 }

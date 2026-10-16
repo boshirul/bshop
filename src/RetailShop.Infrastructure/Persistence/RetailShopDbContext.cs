@@ -1198,9 +1198,12 @@ public sealed class RetailShopDbContext(DbContextOptions<RetailShopDbContext> op
             entity.Property(item => item.CourierName).HasMaxLength(150);
             entity.Property(item => item.TrackingNumber).HasMaxLength(150);
             entity.Property(item => item.Notes).HasMaxLength(1000);
+            entity.Property(item => item.IdempotencyKey).HasMaxLength(128);
+            entity.Property(item => item.CheckoutFingerprint).HasMaxLength(64);
             entity.HasIndex(item => item.OrderNumber).IsUnique();
             entity.HasIndex(item => new { item.Status, item.OrderedOn });
             entity.HasIndex(item => item.CustomerPhone);
+            entity.HasIndex(item => item.IdempotencyKey).IsUnique();
             entity.HasQueryFilter(item => !item.IsDeleted);
         });
 

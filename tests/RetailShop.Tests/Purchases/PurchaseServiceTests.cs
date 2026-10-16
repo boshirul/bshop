@@ -74,6 +74,30 @@ public sealed class PurchaseServiceTests
         Assert.Single(await context.Purchases.ToArrayAsync());
     }
 
+    [Fact]
+    public async Task CreatePurchaseAsync_NormalizesDhakaPurchaseDateToUtcBeforePersistence()
+    {
+        await using var context = CreateContext();
+        var supplier = new Supplier("SUP-000002", "Dhaka Supplier", "01700000001");
+        var category = new Category("Electrical");
+        var unit = new Unit("Pieces", "pcs");
+        var product = new Product("PRD-000002", "Battery", category.Id, unit.Id);
+        context.AddRange(supplier, category, unit, product);
+        await context.SaveChangesAsync();
+
+        var dhakaMidnight = new DateTimeOffset(2026, 10, 16, 0, 0, 0, TimeSpan.FromHours(6));
+        var result = await new PurchaseService(context, new TestAuditService()).CreatePurchaseAsync(
+            new CreatePurchaseRequest(supplier.Id, null, dhakaMidnight, null,
+                [new CreatePurchaseItemRequest(product.Id, 1m, 100m, 0m, 0m)], []),
+            Guid.NewGuid(), CancellationToken.None);
+
+        Assert.True(result.Succeeded);
+        var purchase = await context.Purchases.SingleAsync();
+        Assert.Equal(TimeSpan.Zero, purchase.PurchaseDate.Offset);
+        Assert.Equal(dhakaMidnight.UtcDateTime, purchase.PurchaseDate.UtcDateTime);
+        Assert.Equal(TimeSpan.Zero, (await context.SupplierLedgerEntries.SingleAsync()).EntryDate.Offset);
+    }
+
     private static RetailShopDbContext CreateContext() =>
         new(new DbContextOptionsBuilder<RetailShopDbContext>()
             .UseInMemoryDatabase(Guid.NewGuid().ToString())
