@@ -24,6 +24,7 @@ export interface SaleListItem {
   dueAmount: number;
   status: SaleStatus;
   paymentStatus: SalePaymentStatus;
+  onlineOrderId: string | null;
 }
 
 export interface SaleLine {

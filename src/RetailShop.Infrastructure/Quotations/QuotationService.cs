@@ -115,7 +115,11 @@ internal sealed class QuotationService(
                 item.VatAmount);
         }
         dbContext.Quotations.Add(quotation);
-        await dbContext.SaveChangesAsync(cancellationToken);
+        var saveError = await SaveQuotationAsync(cancellationToken);
+        if (saveError is not null)
+        {
+            return OperationResult<QuotationDetailItem>.Failure(saveError);
+        }
         await auditService.WriteAsync(
             "Create",
             "Quotation",
@@ -179,7 +183,11 @@ internal sealed class QuotationService(
         }
 
         quotation.LastModifiedBy = performedBy;
-        await dbContext.SaveChangesAsync(cancellationToken);
+        var saveError = await SaveQuotationAsync(cancellationToken);
+        if (saveError is not null)
+        {
+            return OperationResult<QuotationDetailItem>.Failure(saveError);
+        }
         await auditService.WriteAsync(
             "Update",
             "Quotation",
@@ -515,6 +523,29 @@ internal sealed class QuotationService(
         return null;
     }
 
+    private async Task<string?> SaveQuotationAsync(CancellationToken cancellationToken)
+    {
+        try
+        {
+            await dbContext.SaveChangesAsync(cancellationToken);
+            return null;
+        }
+        catch (DbUpdateConcurrencyException)
+        {
+            return "Quotation data changed concurrently. Reload and try again.";
+        }
+        catch (DbUpdateException exception)
+        {
+            var message = DatabaseConflictMessages.ForQuotation(exception);
+            if (message is not null)
+            {
+                return message;
+            }
+
+            throw;
+        }
+    }
+
     private async Task ExpireStaleAsync(CancellationToken cancellationToken)
     {
         var today = new DateTimeOffset(DateTimeOffset.UtcNow.Date, TimeSpan.Zero);
@@ -666,7 +697,8 @@ internal sealed class QuotationService(
                     payment.Amount,
                     payment.PaidOn,
                     payment.ReferenceNumber,
-                    payment.Notes)).ToArray()))
+                    payment.Notes)).ToArray(),
+                item.OnlineOrderId))
             .SingleOrDefaultAsync(cancellationToken);
         return sale is null
             ? OperationResult<SaleDetailItem>.Failure("Converted sale not found.")

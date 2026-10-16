@@ -2481,6 +2481,9 @@ namespace RetailShop.Infrastructure.Persistence.Migrations
                         .HasMaxLength(1000)
                         .HasColumnType("character varying(1000)");
 
+                    b.Property<Guid?>("OnlineOrderId")
+                        .HasColumnType("uuid");
+
                     b.Property<decimal>("PaidAmount")
                         .HasPrecision(18, 2)
                         .HasColumnType("numeric(18,2)");
@@ -2515,6 +2518,9 @@ namespace RetailShop.Infrastructure.Persistence.Migrations
                     b.HasKey("Id");
 
                     b.HasIndex("InvoiceNumber")
+                        .IsUnique();
+
+                    b.HasIndex("OnlineOrderId")
                         .IsUnique();
 
                     b.HasIndex("SaleDate");
@@ -3998,7 +4004,14 @@ namespace RetailShop.Infrastructure.Persistence.Migrations
                         .HasForeignKey("CustomerId")
                         .OnDelete(DeleteBehavior.Restrict);
 
+                    b.HasOne("RetailShop.Domain.OnlineOrders.OnlineOrder", "OnlineOrder")
+                        .WithOne("Sale")
+                        .HasForeignKey("RetailShop.Domain.Sales.Sale", "OnlineOrderId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
                     b.Navigation("Customer");
+
+                    b.Navigation("OnlineOrder");
                 });
 
             modelBuilder.Entity("RetailShop.Domain.Sales.SaleDetail", b =>
@@ -4188,6 +4201,8 @@ namespace RetailShop.Infrastructure.Persistence.Migrations
                     b.Navigation("Details");
 
                     b.Navigation("History");
+
+                    b.Navigation("Sale");
                 });
 
             modelBuilder.Entity("RetailShop.Domain.Products.Brand", b =>

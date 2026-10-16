@@ -12,6 +12,7 @@ import { MatTabsModule } from '@angular/material/tabs';
 import { forkJoin } from 'rxjs';
 import { AuthService } from '../../core/auth/auth.service';
 import { permissions } from '../../core/auth/permissions';
+import { OperationNotificationService } from '../../core/notifications/operation-notification.service';
 import { SettingsApiService } from './settings-api.service';
 import { PaymentMethodItem } from './settings.models';
 
@@ -249,6 +250,7 @@ import { PaymentMethodItem } from './settings.models';
 export class SettingsPage implements OnInit {
   private readonly api = inject(SettingsApiService);
   private readonly auth = inject(AuthService);
+  private readonly notifications = inject(OperationNotificationService);
 
   protected readonly paymentTypes = ['Cash', 'Card', 'MobileBanking', 'BankTransfer', 'Other'];
   protected readonly paymentColumns = ['name', 'code', 'type', 'status', 'actions'];
@@ -431,14 +433,19 @@ export class SettingsPage implements OnInit {
   private showSuccess(message: string): void {
     this.errorMessage.set('');
     this.successMessage.set(message);
+    this.notifications.success(message);
   }
 
   private showError(error: unknown): void {
     this.successMessage.set('');
     if (error instanceof HttpErrorResponse && Array.isArray(error.error?.errors)) {
-      this.errorMessage.set(error.error.errors[0] ?? 'The request could not be completed.');
+      const message = error.error.errors[0] ?? 'The request could not be completed.';
+      this.errorMessage.set(message);
+      this.notifications.error(message);
       return;
     }
-    this.errorMessage.set('The request could not be completed.');
+    const message = 'The request could not be completed.';
+    this.errorMessage.set(message);
+    this.notifications.error(message);
   }
 }

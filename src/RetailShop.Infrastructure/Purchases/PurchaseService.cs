@@ -609,9 +609,15 @@ internal sealed class PurchaseService(
         {
             return "Stock or supplier data changed concurrently. Reload and try again.";
         }
-        catch (DbUpdateException)
+        catch (DbUpdateException exception)
         {
-            return "The purchase could not be saved because a conflicting record exists.";
+            var message = DatabaseConflictMessages.ForPurchase(exception);
+            if (message is not null)
+            {
+                return message;
+            }
+
+            throw;
         }
     }
 

@@ -128,4 +128,24 @@ public sealed class OnlineOrdersController(IOnlineOrderService service) : Contro
             ? Ok(ApiResponse<OnlineOrderDetailItem>.Success(result.Value!))
             : BadRequest(ApiResponse<OnlineOrderDetailItem>.Failure(result.Errors));
     }
+
+    [HttpPost("{id:guid}/post-sale")]
+    [Authorize(Policy = Permissions.OnlineOrders.Manage)]
+    [Authorize(Policy = Permissions.Sales.Create)]
+    [Authorize(Policy = Permissions.Sales.SellOnDue)]
+    public async Task<ActionResult<ApiResponse<OnlineOrderDetailItem>>> PostSale(
+        Guid id,
+        PostOnlineOrderSaleRequest request,
+        CancellationToken cancellationToken)
+    {
+        var result = await service.PostSaleAsync(
+            id,
+            request,
+            User.GetRequiredUserId(),
+            User.HasPermission(Permissions.Sales.SellOnDue),
+            cancellationToken);
+        return result.Succeeded
+            ? Ok(ApiResponse<OnlineOrderDetailItem>.Success(result.Value!))
+            : BadRequest(ApiResponse<OnlineOrderDetailItem>.Failure(result.Errors));
+    }
 }

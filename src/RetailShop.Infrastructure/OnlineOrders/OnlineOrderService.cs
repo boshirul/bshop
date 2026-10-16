@@ -3,6 +3,7 @@ using Microsoft.EntityFrameworkCore;
 using RetailShop.Application.Auditing;
 using RetailShop.Application.Common;
 using RetailShop.Application.OnlineOrders;
+using RetailShop.Application.Sales;
 using RetailShop.Domain.Inventory;
 using RetailShop.Domain.OnlineOrders;
 using RetailShop.Infrastructure.Persistence;
@@ -11,7 +12,8 @@ namespace RetailShop.Infrastructure.OnlineOrders;
 
 internal sealed class OnlineOrderService(
     RetailShopDbContext dbContext,
-    IAuditService auditService) : IOnlineOrderService
+    IAuditService auditService,
+    ISaleService saleService) : IOnlineOrderService
 {
     public async Task<PagedResult<OnlineProductListItem>> GetStoreProductsAsync(
         string? search,
@@ -445,6 +447,70 @@ internal sealed class OnlineOrderService(
         return await GetOrderAsync(id, cancellationToken);
     }
 
+    public async Task<OperationResult<OnlineOrderDetailItem>> PostSaleAsync(
+        Guid id,
+        PostOnlineOrderSaleRequest request,
+        Guid performedBy,
+        bool canSellOnDue,
+        CancellationToken cancellationToken)
+    {
+        var order = await LoadOrderAsync(id, cancellationToken);
+        if (order is null)
+        {
+            return OperationResult<OnlineOrderDetailItem>.Failure("Online order not found.");
+        }
+        if (order.Status != OnlineOrderStatus.Delivered)
+        {
+            return OperationResult<OnlineOrderDetailItem>.Failure("Only delivered online orders can be posted as sales.");
+        }
+        if (order.Sale is not null || await dbContext.Sales.AnyAsync(item => item.OnlineOrderId == id, cancellationToken))
+        {
+            return OperationResult<OnlineOrderDetailItem>.Failure("This online order is already linked to a sales invoice.");
+        }
+        if (order.DeliveryCharge != 0)
+        {
+            return OperationResult<OnlineOrderDetailItem>.Failure("This order has a delivery charge. Configure an approved delivery-charge sales treatment before posting it as a sale.");
+        }
+        if (order.Details.Any(item => item.Product.IsSerialRequired))
+        {
+            return OperationResult<OnlineOrderDetailItem>.Failure("A delivered order containing serialized products must be reconciled through the existing sale workflow so serial numbers can be assigned.");
+        }
+
+        var saleRequest = new CreateSaleRequest(
+            request.CustomerId,
+            order.DeliveredOn ?? DateTimeOffset.UtcNow,
+            $"Online order {order.OrderNumber}",
+            order.Details.Select(item => new CreateSaleItemRequest(
+                item.ProductId,
+                item.Quantity,
+                item.UnitPrice,
+                0,
+                0)).ToArray(),
+            []);
+        var result = await saleService.CreateSaleAsync(
+            saleRequest,
+            performedBy,
+            canChangePrice: true,
+            canDiscount: false,
+            canSellOnDue: canSellOnDue,
+            cancellationToken: cancellationToken,
+            onlineOrderId: order.Id,
+            stockAlreadyIssued: true);
+        if (!result.Succeeded)
+        {
+            return OperationResult<OnlineOrderDetailItem>.Failure(result.Errors);
+        }
+
+        await auditService.WriteAsync(
+            "PostSale",
+            "OnlineOrder",
+            order.Id.ToString(),
+            $"Posted delivered online order {order.OrderNumber} as sales invoice {result.Value!.InvoiceNumber}.",
+            performedBy,
+            cancellationToken);
+        return await GetOrderAsync(id, cancellationToken);
+    }
+
     private static string? ValidateOrder(CreateOnlineOrderRequest request)
     {
         if (request.Items.Count == 0)
@@ -470,6 +536,7 @@ internal sealed class OnlineOrderService(
             .Include(item => item.Details)
                 .ThenInclude(item => item.Product)
             .Include(item => item.History)
+            .Include(item => item.Sale)
             .SingleOrDefaultAsync(item => item.Id == id, cancellationToken);
 
     private async Task ReserveStockAsync(
@@ -627,6 +694,13 @@ internal sealed class OnlineOrderService(
             order.ConfirmedOn,
             order.CancelledOn,
             order.DeliveredOn,
+            order.Sale == null ? null : order.Sale.Id,
+            order.Sale == null ? null : order.Sale.InvoiceNumber,
+            order.Sale == null ? 0 : order.Sale.PaidAmount,
+            order.Sale == null || order.Sale.Status == RetailShop.Domain.Sales.SaleStatus.Cancelled
+                ? 0
+                : order.Sale.GrandTotal - order.Sale.ReturnedAmount - (order.Sale.PaidAmount - order.Sale.RefundedAmount),
+            order.Sale == null ? null : order.Sale.PaymentStatus,
             order.Details
                 .OrderBy(item => item.Product.Name)
                 .Select(item => new OnlineOrderLineItem(

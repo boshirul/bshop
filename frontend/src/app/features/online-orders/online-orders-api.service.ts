@@ -45,6 +45,10 @@ export class OnlineOrdersApiService {
     return this.post(`online-orders/${id}/deliver`, { notes });
   }
 
+  postSale(id: string, customerId: string): Observable<OnlineOrderDetail> {
+    return this.post(`online-orders/${id}/post-sale`, { customerId });
+  }
+
   private get<T>(path: string, params?: HttpParams): Observable<T> {
     return this.http.get<ApiResponse<T>>(`${this.base}/${path}`, { params })
       .pipe(map(response => this.data(response)));

@@ -537,10 +537,16 @@ public sealed class RetailShopDbContext(DbContextOptions<RetailShopDbContext> op
             entity.HasIndex(sale => sale.SaleDate);
             entity.HasIndex(sale => new { sale.CustomerId, sale.SaleDate });
             entity.HasIndex(sale => new { sale.Status, sale.PaymentStatus });
+            entity.HasIndex(sale => sale.OnlineOrderId).IsUnique();
             entity
                 .HasOne(sale => sale.Customer)
                 .WithMany()
                 .HasForeignKey(sale => sale.CustomerId)
+                .OnDelete(DeleteBehavior.Restrict);
+            entity
+                .HasOne(sale => sale.OnlineOrder)
+                .WithOne(order => order.Sale)
+                .HasForeignKey<Sale>(sale => sale.OnlineOrderId)
                 .OnDelete(DeleteBehavior.Restrict);
             entity.HasQueryFilter(sale =>
                 !sale.IsDeleted &&

@@ -136,7 +136,15 @@ public sealed class AuthController(IIdentityService identityService) : Controlle
     public async Task<ActionResult<ApiResponse<bool>>> ChangePassword(ChangePasswordRequest request, CancellationToken cancellationToken)
     {
         var result = await identityService.ChangePasswordAsync(User.GetRequiredUserId(), request, GetIpAddress(), cancellationToken);
-        return result.Succeeded ? Ok(ApiResponse<bool>.Success(true, "Password changed. Please sign in again.")) : BadRequest(ApiResponse<bool>.Failure(result.Errors));
+        if (!result.Succeeded)
+        {
+            return BadRequest(ApiResponse<bool>.Failure(result.Errors));
+        }
+
+        // Password changes revoke every refresh token. Remove the browser copy
+        // too, so the next sign-in starts with one unambiguous session.
+        DeleteRefreshCookie();
+        return Ok(ApiResponse<bool>.Success(true, "Password changed. Please sign in again."));
     }
 
     [Authorize]
@@ -169,7 +177,7 @@ public sealed class AuthController(IIdentityService identityService) : Controlle
                 Secure = Request.IsHttps,
                 SameSite = SameSiteMode.Strict,
                 Expires = session.RefreshTokenExpiresOn,
-                Path = "/api/auth",
+                Path = GetRefreshCookiePath(),
                 IsEssential = true
             });
     }
@@ -181,8 +189,14 @@ public sealed class AuthController(IIdentityService identityService) : Controlle
             {
                 Secure = Request.IsHttps,
                 SameSite = SameSiteMode.Strict,
-                Path = "/api/auth"
+                Path = GetRefreshCookiePath()
             });
+
+    // IIS sets PathBase to the application's virtual path (for example,
+    // "/BShopApi"). The cookie must be scoped to that same public path or a
+    // browser will not send it back to the refresh endpoint.
+    private string GetRefreshCookiePath() =>
+        $"{Request.PathBase.Value?.TrimEnd('/') ?? string.Empty}/api/auth";
 
     private string GetIpAddress() =>
         HttpContext.Connection.RemoteIpAddress?.ToString() ?? "unknown";

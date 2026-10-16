@@ -14,9 +14,11 @@ import { ContactApiService } from '../contacts/contact-api.service';
 import { CustomerItem } from '../contacts/contact.models';
 import { InventoryApiService } from '../inventory/inventory-api.service';
 import { ProductApiService } from '../products/product-api.service';
+import { ProductMediaPreviewService } from '../products/product-media-preview.service';
 import { ProductListItem } from '../products/product.models';
 import { SettingsApiService } from '../settings/settings-api.service';
 import { PaymentMethodItem } from '../settings/settings.models';
+import { OperationNotificationService } from '../../core/notifications/operation-notification.service';
 import { SalesApiService } from './sales-api.service';
 import { priceForProductChange } from '../../shared/utils/line-product-pricing';
 
@@ -93,7 +95,7 @@ type PaymentForm = FormGroup<{
                 <mat-select formControlName="productId" (selectionChange)="selectProduct(index)">
                   @for (product of products(); track product.id) {
                     <mat-option [value]="product.id">
-                      <span class="pos-product-option">@if (product.imageUrl) { <img [src]="product.imageUrl" alt="" (error)="showImagePlaceholder($event)" /><span class="pos-product-placeholder" aria-hidden="true">▧</span> } @else { <span class="pos-product-placeholder" aria-hidden="true">▧</span> }<span>{{ product.name }} · {{ product.productCode }} · Stock {{ available(product.id) }}</span></span>
+                      <span class="pos-product-option">@if (thumbnailUrl(product.id); as imageUrl) { <img [src]="imageUrl" alt="" (error)="showImagePlaceholder($event)" /><span class="pos-product-placeholder" aria-hidden="true">▧</span> } @else { <span class="pos-product-placeholder" aria-hidden="true">▧</span> }<span>{{ product.name }} · {{ product.productCode }} · Stock {{ available(product.id) }}</span></span>
                     </mat-option>
                   }
                 </mat-select>
@@ -162,7 +164,7 @@ type PaymentForm = FormGroup<{
         <div><span>Total</span><strong>{{ invoiceTotal() | currency:'BDT':'symbol-narrow' }}</strong></div>
         <div><span>Paid</span><strong>{{ paymentTotal() | currency:'BDT':'symbol-narrow' }}</strong></div>
         <div [class.due]="dueAmount() > 0"><span>Due</span><strong>{{ dueAmount() | currency:'BDT':'symbol-narrow' }}</strong></div>
-        <button matButton="filled" class="transaction-primary" type="submit" [disabled]="form.invalid || saving()">Complete sale</button>
+        <button matButton="filled" class="transaction-primary" type="submit" [disabled]="form.invalid || saving()">{{ saving() ? 'Completing sale…' : 'Complete sale' }}</button>
       </div>
     </form>
   `,
@@ -212,15 +214,18 @@ export class PosCheckoutPage implements OnInit {
   private readonly auth = inject(AuthService);
   private readonly contactsApi = inject(ContactApiService);
   private readonly productApi = inject(ProductApiService);
+  private readonly mediaPreviews = inject(ProductMediaPreviewService);
   private readonly inventoryApi = inject(InventoryApiService);
   private readonly settingsApi = inject(SettingsApiService);
   private readonly router = inject(Router);
+  private readonly notifications = inject(OperationNotificationService);
   protected readonly customers = signal<CustomerItem[]>([]);
   protected readonly products = signal<ProductListItem[]>([]);
   protected readonly paymentMethods = signal<PaymentMethodItem[]>([]);
   protected readonly stock = signal(new Map<string, number>());
   protected readonly saving = signal(false);
   protected readonly errorMessage = signal('');
+  protected readonly thumbnails = signal<Record<string, string | null>>({});
   protected readonly barcode = new FormControl('', { nonNullable: true });
   protected readonly canChangePrice = this.auth.hasPermission(permissions.sales.changePrice);
   protected readonly canDiscount = this.auth.hasPermission(permissions.sales.discount);
@@ -248,6 +253,10 @@ export class PosCheckoutPage implements OnInit {
     (event.currentTarget as HTMLImageElement).hidden = true;
   }
 
+  protected thumbnailUrl(productId: string): string | null {
+    return this.thumbnails()[productId] ?? null;
+  }
+
   protected get items(): FormArray<LineForm> { return this.form.controls.items; }
   protected get payments(): FormArray<PaymentForm> { return this.form.controls.payments; }
 
@@ -257,7 +266,11 @@ export class PosCheckoutPage implements OnInit {
       error: () => this.errorMessage.set('Customers could not be loaded.')
     });
     this.productApi.getProducts('', 1, 100).subscribe({
-      next: result => this.products.set(result.items.filter(product => product.isActive))
+      next: result => {
+        const products = result.items.filter(product => product.isActive);
+        this.products.set(products);
+        this.loadThumbnails(products);
+      }
     });
     this.inventoryApi.getStock('current', '', 1, 100).subscribe({
       next: result => this.stock.set(new Map(result.items.map(item => [item.productId, item.availableQuantity])))
@@ -269,6 +282,18 @@ export class PosCheckoutPage implements OnInit {
   }
 
   protected available(productId: string): number { return this.stock().get(productId) ?? 0; }
+
+  private loadThumbnails(products: ProductListItem[]): void {
+    this.thumbnails.set({});
+    for (const product of products) {
+      if (!product.imageUrl) continue;
+      this.mediaPreviews.preview(product.imageUrl).subscribe((imageUrl) => {
+        if (!this.products().some((item) => item.id === product.id)) return;
+        this.thumbnails.update((current) => ({ ...current, [product.id]: imageUrl }));
+      });
+    }
+  }
+
   protected requiresSerial(productId: string): boolean {
     return this.products().some(item => item.id === productId && item.isSerialRequired);
   }
@@ -350,6 +375,7 @@ export class PosCheckoutPage implements OnInit {
     }
     this.saving.set(true);
     this.errorMessage.set('');
+    const progress = this.notifications.loading('Completing sale…');
     this.salesApi.createSale({
       customerId: value.customerId || null,
       saleDate: value.saleDate,
@@ -366,8 +392,8 @@ export class PosCheckoutPage implements OnInit {
         ...payment, referenceNumber: payment.referenceNumber || null, notes: null
       }))
     }).subscribe({
-      next: sale => this.router.navigate(['/sales-pos', sale.id], { state: { created: true } }),
-      error: error => { this.saving.set(false); this.errorMessage.set(this.describe(error)); }
+      next: sale => { progress.dismiss(); this.router.navigate(['/sales-pos', sale.id], { state: { created: true } }); },
+      error: error => { progress.dismiss(); this.saving.set(false); const message = this.describe(error); this.errorMessage.set(message); this.notifications.error(message); }
     });
   }
   private createLine(): LineForm {

@@ -1,5 +1,6 @@
 using RetailShop.Domain.Common;
 using RetailShop.Domain.Contacts;
+using RetailShop.Domain.OnlineOrders;
 
 namespace RetailShop.Domain.Sales;
 
@@ -24,6 +25,8 @@ public sealed class Sale : AuditableEntity
     public string InvoiceNumber { get; private set; } = string.Empty;
     public Guid? CustomerId { get; private set; }
     public Customer? Customer { get; private set; }
+    public Guid? OnlineOrderId { get; private set; }
+    public OnlineOrder? OnlineOrder { get; private set; }
     public DateTimeOffset SaleDate { get; private set; }
     public SaleStatus Status { get; private set; } = SaleStatus.Completed;
     public SalePaymentStatus PaymentStatus { get; private set; } =
@@ -45,6 +48,19 @@ public sealed class Sale : AuditableEntity
     public DateTimeOffset? CancelledOn { get; private set; }
     public ICollection<SaleDetail> Details { get; private set; } = [];
     public ICollection<SalePayment> Payments { get; private set; } = [];
+
+    public void LinkOnlineOrder(Guid onlineOrderId)
+    {
+        if (onlineOrderId == Guid.Empty)
+        {
+            throw new ArgumentException("Online order is required.", nameof(onlineOrderId));
+        }
+        if (OnlineOrderId.HasValue && OnlineOrderId != onlineOrderId)
+        {
+            throw new InvalidOperationException("This sale is already linked to a different online order.");
+        }
+        OnlineOrderId = onlineOrderId;
+    }
 
     public void AddDetail(
         Guid productId,

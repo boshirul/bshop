@@ -70,7 +70,8 @@ internal sealed class SaleService(
                 sale.Status == SaleStatus.Cancelled
                     ? 0
                     : sale.GrandTotal - sale.ReturnedAmount -
-                      (sale.PaidAmount - sale.RefundedAmount)))
+                      (sale.PaidAmount - sale.RefundedAmount),
+                sale.OnlineOrderId))
             .ToArrayAsync(cancellationToken);
 
         return new PagedResult<SaleListItem>(
@@ -106,7 +107,9 @@ internal sealed class SaleService(
         bool canChangePrice,
         bool canDiscount,
         bool canSellOnDue,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken,
+        Guid? onlineOrderId = null,
+        bool stockAlreadyIssued = false)
     {
         var basicError = ValidateBasicRequest(request, canDiscount);
         if (basicError is not null)
@@ -152,6 +155,10 @@ internal sealed class SaleService(
         {
             CreatedBy = performedBy
         };
+        if (onlineOrderId.HasValue)
+        {
+            sale.LinkOnlineOrder(onlineOrderId.Value);
+        }
 
         foreach (var item in request.Items)
         {
@@ -231,17 +238,20 @@ internal sealed class SaleService(
             var product = await dbContext.Products.SingleAsync(
                 item => item.Id == detail.ProductId,
                 cancellationToken);
-            var stockError = await IssueStockAsync(
-                product,
-                detail.Quantity,
-                detail.CostPrice,
-                sale.Id,
-                sale.InvoiceNumber,
-                performedBy,
-                cancellationToken);
-            if (stockError is not null)
+            if (!stockAlreadyIssued)
             {
-                return OperationResult<SaleDetailItem>.Failure(stockError);
+                var stockError = await IssueStockAsync(
+                    product,
+                    detail.Quantity,
+                    detail.CostPrice,
+                    sale.Id,
+                    sale.InvoiceNumber,
+                    performedBy,
+                    cancellationToken);
+                if (stockError is not null)
+                {
+                    return OperationResult<SaleDetailItem>.Failure(stockError);
+                }
             }
             var serialError = await ApplySerialsAsync(
                 sale,
@@ -410,6 +420,15 @@ internal sealed class SaleService(
         if (sale is null)
         {
             return OperationResult<SaleDetailItem>.Failure("Sale not found.");
+        }
+
+        // A delivered online order has already consumed its reservation.  A normal
+        // cancellation would restore stock even though the order itself remains
+        // delivered, so returns must use the established sales-return workflow.
+        if (sale.OnlineOrderId.HasValue)
+        {
+            return OperationResult<SaleDetailItem>.Failure(
+                "A delivered online-order sale cannot be cancelled. Use the sales return workflow instead.");
         }
 
         try
@@ -867,5 +886,6 @@ internal sealed class SaleService(
                     item.PaidOn,
                     item.ReferenceNumber,
                     item.Notes))
-                .ToArray()));
+                .ToArray(),
+            sale.OnlineOrderId));
 }

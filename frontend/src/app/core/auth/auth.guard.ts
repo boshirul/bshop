@@ -8,13 +8,18 @@ export const authGuard: CanActivateFn = (_route, state) => {
   const router = inject(Router);
 
   return auth.ensureSession().pipe(
-    map((authenticated) =>
-      authenticated
-        ? true
-        : router.createUrlTree(['/auth/login'], {
-            queryParams: { returnUrl: state.url }
-          })
-    )
+    map((authenticated) => {
+      if (authenticated) {
+        return true;
+      }
+
+      return router.createUrlTree(['/auth/login'], {
+        queryParams: {
+          returnUrl: state.url,
+          ...(auth.consumeSessionExpiry() ? { sessionExpired: '1' } : {})
+        }
+      });
+    })
   );
 };
 

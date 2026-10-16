@@ -1,4 +1,4 @@
-import { HttpClient } from '@angular/common/http';
+import { HttpClient, HttpErrorResponse } from '@angular/common/http';
 import { computed, inject, Injectable, signal } from '@angular/core';
 import { catchError, finalize, map, Observable, of, shareReplay, tap } from 'rxjs';
 import { API_BASE_URL } from '../http/api-base-url.token';
@@ -11,6 +11,7 @@ export class AuthService {
   private readonly http = inject(HttpClient);
   private readonly apiBaseUrl = inject(API_BASE_URL);
   private readonly session = signal<AuthResponse | null>(this.readSession());
+  private sessionExpiryPending = false;
   private refreshRequest?: Observable<AuthResponse>;
 
   readonly currentUser = computed(() => this.session()?.user ?? null);
@@ -73,11 +74,34 @@ export class AuthService {
 
     return this.refresh().pipe(
       map(() => true),
-      catchError(() => {
-        this.clearSession();
-        return of(false);
+      catchError((error: unknown) => {
+        if (this.isDefinitiveRefreshFailure(error)) {
+          this.expireSession();
+          return of(false);
+        }
+
+        // Do not discard a valid persisted session because a refresh request
+        // failed due to a temporary network or server problem.
+        return of(session !== null);
       })
     );
+  }
+
+  isDefinitiveRefreshFailure(error: unknown): boolean {
+    return error instanceof HttpErrorResponse && error.status === 401;
+  }
+
+  expireSession(): boolean {
+    const hadSession = this.session() !== null;
+    this.clearSession();
+    this.sessionExpiryPending ||= hadSession;
+    return hadSession;
+  }
+
+  consumeSessionExpiry(): boolean {
+    const expired = this.sessionExpiryPending;
+    this.sessionExpiryPending = false;
+    return expired;
   }
 
   logout(): Observable<void> {
@@ -107,11 +131,12 @@ export class AuthService {
   }
 
   private saveSession(session: AuthResponse): void {
+    this.sessionExpiryPending = false;
     this.session.set(session);
     globalThis.sessionStorage?.setItem(sessionKey, JSON.stringify(session));
   }
 
-  private clearSession(): void {
+  clearSession(): void {
     this.session.set(null);
     globalThis.sessionStorage?.removeItem(sessionKey);
   }

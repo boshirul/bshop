@@ -1,5 +1,5 @@
 import { HttpErrorResponse } from '@angular/common/http';
-import { Component, inject, signal } from '@angular/core';
+import { Component, inject, OnInit, signal } from '@angular/core';
 import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
 import { MatButtonModule } from '@angular/material/button';
 import { MatCardModule } from '@angular/material/card';
@@ -119,7 +119,7 @@ import { AuthService } from '../../core/auth/auth.service';
   `,
   styleUrl: './auth-page.scss'
 })
-export class LoginPage {
+export class LoginPage implements OnInit {
   private readonly formBuilder = inject(FormBuilder);
   private readonly auth = inject(AuthService);
   private readonly router = inject(Router);
@@ -132,6 +132,14 @@ export class LoginPage {
     email: ['admin@khanshop.local', [Validators.required, Validators.email]],
     password: ['', Validators.required]
   });
+
+  ngOnInit(): void {
+    if (this.route.snapshot.queryParamMap.get('sessionExpired') === '1') {
+      this.errorMessage.set('Your session has expired. Please sign in again.');
+    } else if (this.route.snapshot.queryParamMap.get('passwordChanged') === '1') {
+      this.errorMessage.set('Password changed. Please sign in again.');
+    }
+  }
 
   protected submit(): void {
     if (this.form.invalid || this.submitting()) {
@@ -146,8 +154,11 @@ export class LoginPage {
       .pipe(finalize(() => this.submitting.set(false)))
       .subscribe({
         next: () => {
+          const requestedReturnUrl = this.route.snapshot.queryParamMap.get('returnUrl');
           const returnUrl =
-            this.route.snapshot.queryParamMap.get('returnUrl') ?? '/dashboard';
+            requestedReturnUrl?.startsWith('/') && !requestedReturnUrl.startsWith('//')
+              ? requestedReturnUrl
+              : '/dashboard';
           this.router.navigateByUrl(returnUrl);
         },
         error: (error: unknown) => this.errorMessage.set(this.describeError(error))

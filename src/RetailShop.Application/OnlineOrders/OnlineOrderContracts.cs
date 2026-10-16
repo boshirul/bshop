@@ -1,6 +1,7 @@
 using RetailShop.Application.Common;
 using RetailShop.Domain.OnlineOrders;
 using RetailShop.Domain.Products;
+using RetailShop.Domain.Sales;
 
 namespace RetailShop.Application.OnlineOrders;
 
@@ -89,6 +90,11 @@ public sealed record OnlineOrderDetailItem(
     DateTimeOffset? ConfirmedOn,
     DateTimeOffset? CancelledOn,
     DateTimeOffset? DeliveredOn,
+    Guid? SaleId,
+    string? InvoiceNumber,
+    decimal PaidAmount,
+    decimal DueAmount,
+    SalePaymentStatus? PaymentStatus,
     IReadOnlyCollection<OnlineOrderLineItem> Items,
     IReadOnlyCollection<OnlineOrderHistoryItem> History);
 
@@ -119,6 +125,8 @@ public sealed record AssignCourierRequest(
 public sealed record CancelOnlineOrderRequest(string Reason);
 
 public sealed record DeliverOnlineOrderRequest(string? Notes);
+
+public sealed record PostOnlineOrderSaleRequest(Guid CustomerId);
 
 public interface IOnlineOrderService
 {
@@ -181,5 +189,12 @@ public interface IOnlineOrderService
         Guid id,
         DeliverOnlineOrderRequest request,
         Guid performedBy,
+        CancellationToken cancellationToken);
+
+    Task<OperationResult<OnlineOrderDetailItem>> PostSaleAsync(
+        Guid id,
+        PostOnlineOrderSaleRequest request,
+        Guid performedBy,
+        bool canSellOnDue,
         CancellationToken cancellationToken);
 }

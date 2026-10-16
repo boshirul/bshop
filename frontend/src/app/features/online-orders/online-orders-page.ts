@@ -8,8 +8,13 @@ import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatInputModule } from '@angular/material/input';
 import { MatSelectModule } from '@angular/material/select';
 import { MatTableModule } from '@angular/material/table';
+import { RouterLink } from '@angular/router';
+import { Observable } from 'rxjs';
 import { AuthService } from '../../core/auth/auth.service';
 import { permissions } from '../../core/auth/permissions';
+import { OperationNotificationService } from '../../core/notifications/operation-notification.service';
+import { ContactApiService } from '../contacts/contact-api.service';
+import { CustomerItem } from '../contacts/contact.models';
 import {
   OnlineOrderDetail,
   OnlineOrderListItem,
@@ -29,7 +34,8 @@ import { OnlineOrdersApiService } from './online-orders-api.service';
     MatFormFieldModule,
     MatInputModule,
     MatSelectModule,
-    MatTableModule
+    MatTableModule,
+    RouterLink
   ],
   template: `
     <header class="page-header">
@@ -73,6 +79,8 @@ import { OnlineOrdersApiService } from './online-orders-api.service';
             <div class="summary-box"><span>Source</span><strong>{{ order.source }}</strong></div>
             <div class="summary-box"><span>Total</span><strong>{{ order.grandTotal | currency:'BDT':'symbol-narrow' }}</strong></div>
             <div class="summary-box"><span>Courier</span><strong>{{ order.courierName || 'Not assigned' }}</strong><div class="code">{{ order.trackingNumber || '' }}</div></div>
+            <div class="summary-box"><span>Sales invoice</span>@if (order.saleId) { <a matButton [routerLink]="['/sales-pos', order.saleId]">{{ order.invoiceNumber }}</a> } @else { <strong>Not posted</strong> }</div>
+            <div class="summary-box"><span>Payment</span><strong>{{ order.paymentStatus || 'No sale yet' }}</strong>@if (order.saleId) { <div class="code">Paid {{ order.paidAmount | currency:'BDT':'symbol-narrow' }} · Due {{ order.dueAmount | currency:'BDT':'symbol-narrow' }}</div> }</div>
           </div>
           <p><strong>Delivery address:</strong> {{ order.deliveryAddress }}</p>
           <div class="table-wrap">
@@ -91,14 +99,23 @@ import { OnlineOrdersApiService } from './online-orders-api.service';
               <mat-form-field appearance="outline"><mat-label>Notes / reason</mat-label><input matInput formControlName="notes" /></mat-form-field>
             </form>
             <div class="actions">
-              @if (order.status === 'Pending') { <button matButton="filled" type="button" (click)="confirm(order)">Confirm & reserve</button> }
+              @if (order.status === 'Pending') { <button matButton="filled" type="button" [disabled]="workingAction()" (click)="confirm(order)">Confirm & reserve</button> }
               @if (order.status === 'Confirmed') {
-                <button matButton type="button" (click)="assignCourier(order)">Assign courier</button>
-                <button matButton="filled" type="button" (click)="deliver(order)">Deliver</button>
+                <button matButton type="button" [disabled]="workingAction()" (click)="assignCourier(order)">Assign courier</button>
+                <button matButton="filled" type="button" [disabled]="workingAction()" (click)="deliver(order)">Deliver</button>
               }
-              <button matButton type="button" (click)="cancel(order)">Cancel</button>
+              <button matButton type="button" [disabled]="workingAction()" (click)="cancel(order)">Cancel</button>
             </div>
           }
+          @if (canPostSale && order.status === 'Delivered' && !order.saleId) {
+            <section class="action-form online-sale-posting">
+              <h3>Post delivered order as sale</h3>
+              <p class="transaction-helper">This creates an unpaid sales invoice using the order's saved prices. Record actual collections from the invoice; delivery alone never marks payment as received.</p>
+              <mat-form-field appearance="outline"><mat-label>Existing customer for due tracking</mat-label><mat-select [formControl]="saleCustomerId"><mat-option value="">Select customer</mat-option>@for (customer of customers(); track customer.id) { <mat-option [value]="customer.id">{{ customer.name }} · {{ customer.customerCode }}</mat-option> }</mat-select></mat-form-field>
+              <button matButton="filled" type="button" [disabled]="!saleCustomerId.value || postingSale() || workingAction()" (click)="postSale(order)">{{ postingSale() ? 'Posting sale…' : 'Post sales invoice' }}</button>
+            </section>
+          }
+          @if (order.saleId && canCollectDue) { <a matButton="filled" [routerLink]="['/sales-pos', order.saleId, 'payment']">Record actual payment</a> }
           <h3>History</h3>
           @for (history of order.history; track history.id) {
             <p><strong>{{ history.action }}</strong> · {{ history.performedOn | date:'medium' }}<br /><span class="code">{{ history.notes || 'No notes' }}</span></p>
@@ -112,9 +129,14 @@ import { OnlineOrdersApiService } from './online-orders-api.service';
 export class OnlineOrdersPage implements OnInit {
   private readonly api = inject(OnlineOrdersApiService);
   private readonly auth = inject(AuthService);
+  private readonly contacts = inject(ContactApiService);
+  private readonly notifications = inject(OperationNotificationService);
   protected readonly orders = signal<OnlineOrderListItem[]>([]);
   protected readonly selected = signal<OnlineOrderDetail | null>(null);
   protected readonly error = signal('');
+  protected readonly customers = signal<CustomerItem[]>([]);
+  protected readonly postingSale = signal(false);
+  protected readonly workingAction = signal(false);
   protected readonly search = new FormControl('', { nonNullable: true });
   protected readonly status = new FormControl<OnlineOrderStatus | ''>('', { nonNullable: true });
   protected readonly source = new FormControl<OnlineOrderSource | ''>('', { nonNullable: true });
@@ -123,13 +145,23 @@ export class OnlineOrdersPage implements OnInit {
     trackingNumber: new FormControl('', { nonNullable: true }),
     notes: new FormControl('', { nonNullable: true })
   });
+  protected readonly saleCustomerId = new FormControl('', { nonNullable: true });
   protected readonly columns = ['order', 'customer', 'status', 'total'];
   protected readonly lineColumns = ['product', 'quantity', 'amount'];
   protected readonly statuses: OnlineOrderStatus[] = ['Pending', 'Confirmed', 'Cancelled', 'Delivered'];
   protected readonly sources: OnlineOrderSource[] = ['Website', 'Facebook', 'Phone', 'WhatsApp'];
   protected readonly canManage = this.auth.hasPermission(permissions.onlineOrders.manage);
+  protected readonly canPostSale = this.canManage &&
+    this.auth.hasPermission(permissions.sales.create) &&
+    this.auth.hasPermission(permissions.sales.sellOnDue);
+  protected readonly canCollectDue = this.auth.hasPermission(permissions.customerAccounts.collectDue);
 
-  ngOnInit(): void { this.load(); }
+  ngOnInit(): void {
+    this.load();
+    if (this.canPostSale) {
+      this.contacts.get('customers', '', 1, 100).subscribe({ next: result => this.customers.set(result.items as CustomerItem[]) });
+    }
+  }
 
   protected load(): void {
     this.api.list(this.search.value, this.status.value, this.source.value).subscribe({
@@ -153,38 +185,67 @@ export class OnlineOrdersPage implements OnInit {
   }
 
   protected confirm(order: OnlineOrderDetail): void {
-    this.api.confirm(order.id, this.actionForm.controls.notes.value || null).subscribe(this.refresh());
+    this.performAction(
+      this.api.confirm(order.id, this.actionForm.controls.notes.value || null),
+      'Order confirmed and stock reserved.');
   }
 
   protected assignCourier(order: OnlineOrderDetail): void {
     const value = this.actionForm.getRawValue();
-    this.api.courier(order.id, {
+    this.performAction(this.api.courier(order.id, {
       courierName: value.courierName || null,
       trackingNumber: value.trackingNumber || null,
       notes: value.notes || null
-    }).subscribe(this.refresh());
+    }), 'Courier details saved.');
   }
 
   protected cancel(order: OnlineOrderDetail): void {
     const reason = this.actionForm.controls.notes.value.trim();
     if (!reason) { this.error.set('Enter a cancellation reason in notes.'); return; }
-    this.api.cancel(order.id, reason).subscribe(this.refresh());
+    this.performAction(this.api.cancel(order.id, reason), 'Order cancelled and reserved stock released.');
   }
 
   protected deliver(order: OnlineOrderDetail): void {
-    this.api.deliver(order.id, this.actionForm.controls.notes.value || null).subscribe(this.refresh());
+    this.performAction(
+      this.api.deliver(order.id, this.actionForm.controls.notes.value || null),
+      'Order marked as delivered. Record a sale invoice and actual payment separately.');
   }
 
-  private refresh() {
-    return {
-      next: (result: OnlineOrderDetail) => { this.selected.set(result); this.load(); },
-      error: (error: unknown) => this.fail(error, 'Online order action failed.')
-    };
+  protected postSale(order: OnlineOrderDetail): void {
+    if (!this.saleCustomerId.value || this.postingSale()) return;
+    this.postingSale.set(true);
+    const progress = this.notifications.loading('Posting sales invoice…');
+    this.api.postSale(order.id, this.saleCustomerId.value).subscribe({
+      next: result => { progress.dismiss(); this.postingSale.set(false); this.selected.set(result); this.notifications.success(`Sales invoice ${result.invoiceNumber} posted.`); this.load(); },
+      error: error => { progress.dismiss(); this.postingSale.set(false); this.fail(error, 'Online order could not be posted as a sale.'); }
+    });
+  }
+
+  private performAction(action: Observable<OnlineOrderDetail>, successMessage: string): void {
+    if (this.workingAction()) return;
+    this.workingAction.set(true);
+    const progress = this.notifications.loading('Updating online order…');
+    action.subscribe({
+      next: result => {
+        progress.dismiss();
+        this.workingAction.set(false);
+        this.selected.set(result);
+        this.load();
+        this.notifications.success(successMessage);
+      },
+      error: error => {
+        progress.dismiss();
+        this.workingAction.set(false);
+        this.fail(error, 'Online order action failed.');
+      }
+    });
   }
 
   private fail(error: unknown, fallback: string): void {
-    this.error.set(error instanceof HttpErrorResponse && error.error?.errors?.[0]
+    const message = error instanceof HttpErrorResponse && error.error?.errors?.[0]
       ? error.error.errors[0]
-      : fallback);
+      : fallback;
+    this.error.set(message);
+    this.notifications.error(message);
   }
 }

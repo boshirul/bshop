@@ -15,6 +15,7 @@ import { ProductListItem } from '../products/product.models';
 import { SettingsApiService } from '../settings/settings-api.service';
 import { PaymentMethodItem } from '../settings/settings.models';
 import { PurchaseApiService } from './purchase-api.service';
+import { OperationNotificationService } from '../../core/notifications/operation-notification.service';
 
 type LineForm = FormGroup<{
   productId: FormControl<string>;
@@ -133,7 +134,7 @@ type LineForm = FormGroup<{
 
       <div class="save-bar transaction-total-bar transaction-summary">
         <div><span>Invoice total</span><strong>{{ invoiceTotal() | currency:'BDT':'symbol-narrow' }}</strong></div>
-        <button matButton="filled" class="transaction-primary" type="submit" [disabled]="form.invalid || saving()">Confirm purchase</button>
+        <button matButton="filled" class="transaction-primary" type="submit" [disabled]="form.invalid || saving()">{{ saving() ? 'Saving purchase…' : 'Confirm purchase' }}</button>
       </div>
     </form>
   `,
@@ -189,6 +190,7 @@ export class PurchaseEditorPage implements OnInit {
   private readonly productApi = inject(ProductApiService);
   private readonly settingsApi = inject(SettingsApiService);
   private readonly router = inject(Router);
+  private readonly notifications = inject(OperationNotificationService);
   protected readonly suppliers = signal<SupplierItem[]>([]);
   protected readonly products = signal<ProductListItem[]>([]);
   protected readonly paymentMethods = signal<PaymentMethodItem[]>([]);
@@ -240,6 +242,7 @@ export class PurchaseEditorPage implements OnInit {
       this.errorMessage.set('Choose a payment method for the initial payment.'); return;
     }
     this.saving.set(true); this.errorMessage.set('');
+    const progress = this.notifications.loading('Saving purchase…');
     this.api.createPurchase({
       supplierId: value.supplierId,
       supplierInvoiceNumber: value.supplierInvoiceNumber || null,
@@ -251,8 +254,8 @@ export class PurchaseEditorPage implements OnInit {
         referenceNumber: value.payment.referenceNumber || null, notes: null
       }] : []
     }).subscribe({
-      next: purchase => this.router.navigate(['/purchase', purchase.id], { state: { created: true } }),
-      error: error => { this.saving.set(false); this.errorMessage.set(this.describe(error)); }
+      next: purchase => { progress.dismiss(); this.router.navigate(['/purchase', purchase.id], { state: { created: true } }); },
+      error: error => { progress.dismiss(); this.saving.set(false); const message = this.describe(error); this.errorMessage.set(message); this.notifications.error(message); }
     });
   }
   private createLine(): LineForm {
@@ -266,7 +269,11 @@ export class PurchaseEditorPage implements OnInit {
   }
   private today(): string { return new Date().toISOString().slice(0, 10); }
   private describe(error: unknown): string {
-    return error instanceof HttpErrorResponse && error.error?.errors?.[0]
-      ? error.error.errors[0] : 'The purchase could not be confirmed.';
+    if (!(error instanceof HttpErrorResponse)) return 'The purchase could not be confirmed.';
+    if (error.error?.errors?.[0]) return error.error.errors[0];
+    if (typeof error.error?.traceId === 'string') {
+      return `The purchase could not be saved. Reference: ${error.error.traceId}`;
+    }
+    return 'The purchase could not be confirmed.';
   }
 }

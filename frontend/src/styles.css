@@ -357,6 +357,43 @@ mat-table {
   background: rgb(2 10 23 / 72%);
 }
 
+/* Operation feedback lives in the CDK overlay, so it remains visible while a long
+   form is scrolled. The class is applied only by OperationNotificationService. */
+.bshop-operation-notification-panel {
+  margin: var(--bshop-space-4);
+  max-width: min(34rem, calc(100vw - 2 * var(--bshop-space-4)));
+  min-width: min(20rem, calc(100vw - 2 * var(--bshop-space-4)));
+}
+
+.bshop-operation-notification-panel .mdc-snackbar__surface {
+  background: var(--bshop-color-surface-raised);
+  border: 1px solid var(--bshop-color-border);
+  border-radius: var(--bshop-radius-md);
+  box-shadow: var(--bshop-shadow-md);
+  padding: 0;
+}
+
+.operation-notification {
+  align-items: center;
+  display: flex;
+  gap: var(--bshop-space-3);
+  min-height: 3.5rem;
+  padding: var(--bshop-space-3) var(--bshop-space-4);
+}
+
+.operation-notification--success { border-inline-start: 4px solid var(--bshop-color-success); }
+.operation-notification--error { border-inline-start: 4px solid var(--bshop-color-danger); }
+.operation-notification--warning { border-inline-start: 4px solid var(--bshop-color-warning); }
+.operation-notification--loading { border-inline-start: 4px solid var(--bshop-color-primary); }
+
+.operation-notification__message { color: var(--bshop-color-text); line-height: 1.45; overflow-wrap: anywhere; }
+.operation-notification .mat-mdc-button { color: var(--bshop-color-primary-hover); margin-inline-start: auto; }
+.operation-notification__progress { animation: bshop-spin 800ms linear infinite; border: 2px solid rgb(159 179 204 / 25%); border-radius: 50%; border-top-color: var(--bshop-color-primary); flex: 0 0 auto; height: 1rem; width: 1rem; }
+
+@media (width <= 560px) {
+  .bshop-operation-notification-panel { margin: var(--bshop-space-3); max-width: calc(100vw - 2 * var(--bshop-space-3)); min-width: calc(100vw - 2 * var(--bshop-space-3)); }
+}
+
 /* Shared authentication shell: used by login, password reset, and password recovery. */
 .auth-page {
   align-items: center;

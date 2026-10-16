@@ -1,4 +1,5 @@
 using RetailShop.Domain.Common;
+using RetailShop.Domain.Sales;
 
 namespace RetailShop.Domain.OnlineOrders;
 
@@ -74,6 +75,7 @@ public sealed class OnlineOrder : AuditableEntity
     public DateTimeOffset? DeliveredOn { get; private set; }
     public ICollection<OnlineOrderDetail> Details { get; private set; } = [];
     public ICollection<OnlineOrderHistory> History { get; private set; } = [];
+    public Sale? Sale { get; private set; }
 
     public void AddDetail(
         Guid productId,

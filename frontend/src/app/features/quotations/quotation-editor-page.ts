@@ -16,6 +16,7 @@ import { AuthService } from '../../core/auth/auth.service';
 import { permissions } from '../../core/auth/permissions';
 import { priceForProductChange } from '../../shared/utils/line-product-pricing';
 import { QuotationApiService } from './quotation-api.service';
+import { OperationNotificationService } from '../../core/notifications/operation-notification.service';
 
 type LineForm = FormGroup<{
   productId: FormControl<string>; quantity: FormControl<number>; unitPrice: FormControl<number>;
@@ -61,7 +62,7 @@ type LineForm = FormGroup<{
         </mat-card-content>
       </mat-card>
       <div class="save-bar transaction-total-bar transaction-summary"><div><span>Quotation total</span><strong>{{total()|currency:'BDT':'symbol-narrow'}}</strong></div>
-        <button matButton="filled" class="transaction-primary" type="submit" [disabled]="form.invalid||saving()">Save quotation</button></div>
+        <button matButton="filled" class="transaction-primary" type="submit" [disabled]="form.invalid||saving()">{{ saving() ? 'Saving quotation…' : 'Save quotation' }}</button></div>
     </form>
   `,
   styles: `
@@ -96,6 +97,7 @@ export class QuotationEditorPage implements OnInit {
   private readonly auth = inject(AuthService);
   private readonly route = inject(ActivatedRoute);
   private readonly router = inject(Router);
+  private readonly notifications = inject(OperationNotificationService);
   protected readonly quotationId = this.route.snapshot.paramMap.get('id');
   protected readonly customers = signal<CustomerItem[]>([]);
   protected readonly products = signal<ProductListItem[]>([]);
@@ -142,11 +144,12 @@ export class QuotationEditorPage implements OnInit {
   protected save(): void {
     if (this.form.invalid) { this.form.markAllAsTouched(); return; }
     this.saving.set(true); this.errorMessage.set('');
+    const progress = this.notifications.loading('Saving quotation…');
     const value = this.form.getRawValue();
     const request = { ...value, notes: value.notes || null, terms: value.terms || null };
     const action = this.quotationId ? this.api.updateQuotation(this.quotationId, request) : this.api.createQuotation(request);
-    action.subscribe({ next: quotation => this.router.navigate(['/quotations', quotation.id]),
-      error: error => { this.saving.set(false); this.errorMessage.set(this.describe(error)); } });
+    action.subscribe({ next: quotation => { progress.dismiss(); this.router.navigate(['/quotations', quotation.id]); },
+      error: error => { progress.dismiss(); this.saving.set(false); const message = this.describe(error); this.errorMessage.set(message); this.notifications.error(message); } });
   }
   private createLine(): LineForm {
     return new FormGroup({ productId: new FormControl('', { nonNullable:true, validators:[Validators.required] }),
@@ -168,5 +171,12 @@ export class QuotationEditorPage implements OnInit {
     const day = String(date.getDate()).padStart(2, '0');
     return `${date.getFullYear()}-${month}-${day}`;
   }
-  private describe(error: unknown): string { return error instanceof HttpErrorResponse && error.error?.errors?.[0] ? error.error.errors[0] : 'The quotation could not be saved.'; }
+  private describe(error: unknown): string {
+    if (!(error instanceof HttpErrorResponse)) return 'The quotation could not be saved.';
+    if (error.error?.errors?.[0]) return error.error.errors[0];
+    if (typeof error.error?.traceId === 'string') {
+      return `The quotation could not be saved. Reference: ${error.error.traceId}`;
+    }
+    return 'The quotation could not be saved.';
+  }
 }

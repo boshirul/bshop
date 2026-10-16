@@ -119,6 +119,19 @@ public sealed class SaleDomainTests
             () => sale.AddPayment(CreatePayment(sale.Id, 10)));
     }
 
+    [Fact]
+    public void LinkOnlineOrder_IsStableAndRejectsADifferentOrder()
+    {
+        var sale = CreateSale();
+        var orderId = Guid.NewGuid();
+
+        sale.LinkOnlineOrder(orderId);
+        sale.LinkOnlineOrder(orderId);
+
+        Assert.Equal(orderId, sale.OnlineOrderId);
+        Assert.Throws<InvalidOperationException>(() => sale.LinkOnlineOrder(Guid.NewGuid()));
+    }
+
     [Theory]
     [InlineData(0, 0)]
     [InlineData(10, 5)]

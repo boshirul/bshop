@@ -43,7 +43,8 @@ public sealed record SaleListItem(
     SalePaymentStatus PaymentStatus,
     decimal GrandTotal,
     decimal PaidAmount,
-    decimal DueAmount);
+    decimal DueAmount,
+    Guid? OnlineOrderId);
 
 public sealed record SaleDetailItem(
     Guid Id,
@@ -65,7 +66,8 @@ public sealed record SaleDetailItem(
     string? CancellationReason,
     DateTimeOffset? CancelledOn,
     IReadOnlyCollection<SaleLineItem> Items,
-    IReadOnlyCollection<SalePaymentItem> Payments);
+    IReadOnlyCollection<SalePaymentItem> Payments,
+    Guid? OnlineOrderId);
 
 public sealed record SaleLineItem(
     Guid Id,
@@ -134,7 +136,9 @@ public interface ISaleService
         bool canChangePrice,
         bool canDiscount,
         bool canSellOnDue,
-        CancellationToken cancellationToken);
+        CancellationToken cancellationToken,
+        Guid? onlineOrderId = null,
+        bool stockAlreadyIssued = false);
 
     Task<OperationResult<SaleDetailItem>> RecordPaymentAsync(
         Guid saleId,

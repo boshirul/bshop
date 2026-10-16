@@ -1,10 +1,12 @@
 import { HttpErrorResponse, HttpInterceptorFn } from '@angular/common/http';
 import { inject } from '@angular/core';
+import { Router } from '@angular/router';
 import { catchError, switchMap, throwError } from 'rxjs';
 import { AuthService } from './auth.service';
 
 export const authInterceptor: HttpInterceptorFn = (request, next) => {
   const auth = inject(AuthService);
+  const router = inject(Router);
   const token = auth.accessToken();
   const isAuthEndpoint =
     request.url.includes('/auth/login') ||
@@ -21,7 +23,12 @@ export const authInterceptor: HttpInterceptorFn = (request, next) => {
 
   return next(authenticatedRequest).pipe(
     catchError((error: unknown) => {
-      if (!(error instanceof HttpErrorResponse) || error.status !== 401 || isAuthEndpoint) {
+      if (
+        !(error instanceof HttpErrorResponse) ||
+        error.status !== 401 ||
+        isAuthEndpoint ||
+        !auth.isAuthenticated()
+      ) {
         return throwError(() => error);
       }
 
@@ -34,7 +41,18 @@ export const authInterceptor: HttpInterceptorFn = (request, next) => {
             })
           )
         ),
-        catchError((refreshError) => throwError(() => refreshError))
+        catchError((refreshError: unknown) => {
+          if (auth.isDefinitiveRefreshFailure(refreshError) && auth.expireSession()) {
+            const returnUrl = router.url.startsWith('/') && !router.url.startsWith('//')
+              ? router.url
+              : '/dashboard';
+            void router.navigate(['/auth/login'], {
+              queryParams: { returnUrl, sessionExpired: '1' }
+            });
+          }
+
+          return throwError(() => refreshError);
+        })
       );
     })
   );

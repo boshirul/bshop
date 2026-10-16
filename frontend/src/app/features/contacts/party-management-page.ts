@@ -10,6 +10,7 @@ import { MatInputModule } from '@angular/material/input';
 import { MatTableModule } from '@angular/material/table';
 import { AuthService } from '../../core/auth/auth.service';
 import { permissions } from '../../core/auth/permissions';
+import { OperationNotificationService } from '../../core/notifications/operation-notification.service';
 import { ContactApiService } from './contact-api.service';
 import {
   CustomerItem,
@@ -196,6 +197,7 @@ export class PartyManagementPage implements OnInit {
   readonly kind = input.required<PartyKind>();
   private readonly api = inject(ContactApiService);
   private readonly auth = inject(AuthService);
+  private readonly notifications = inject(OperationNotificationService);
 
   protected readonly columns = ['party', 'contact', 'details', 'status', 'actions'];
   protected readonly search = new FormControl('', { nonNullable: true });
@@ -290,12 +292,13 @@ export class PartyManagementPage implements OnInit {
     this.api.save(this.kind(), this.editingId(), request).subscribe({
       next: () => {
         this.saving.set(false);
+        this.notifications.success(this.editingId() ? 'Contact updated.' : 'Contact created.');
         this.cancel();
         this.load(this.page());
       },
       error: (error) => {
         this.saving.set(false);
-        this.errorMessage.set(this.describeError(error));
+        const message = this.describeError(error); this.errorMessage.set(message); this.notifications.error(message);
       }
     });
   }
@@ -320,8 +323,8 @@ export class PartyManagementPage implements OnInit {
   protected remove(item: PartyItem): void {
     if (!globalThis.confirm?.(`Delete "${item.name}"?`)) return;
     this.api.delete(this.kind(), item.id).subscribe({
-      next: () => this.load(this.page()),
-      error: (error) => this.errorMessage.set(this.describeError(error))
+      next: () => { this.notifications.success('Contact deleted.'); this.load(this.page()); },
+      error: (error) => { const message = this.describeError(error); this.errorMessage.set(message); this.notifications.error(message); }
     });
   }
 

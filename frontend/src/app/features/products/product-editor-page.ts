@@ -10,6 +10,7 @@ import { MatSelectModule } from '@angular/material/select';
 import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 import { filter, finalize, forkJoin, map, Observable, of, switchMap } from 'rxjs';
 import { ProductApiService } from './product-api.service';
+import { OperationNotificationService } from '../../core/notifications/operation-notification.service';
 import {
   NamedMasterDataItem,
   ProductDetail,
@@ -205,6 +206,7 @@ export class ProductEditorPage implements OnInit {
   private readonly formBuilder = inject(FormBuilder);
   private readonly route = inject(ActivatedRoute);
   private readonly router = inject(Router);
+  private readonly notifications = inject(OperationNotificationService);
 
   protected readonly productId = this.route.snapshot.paramMap.get('id');
   protected readonly categories = signal<NamedMasterDataItem[]>([]);
@@ -325,7 +327,7 @@ export class ProductEditorPage implements OnInit {
       )
       .subscribe({
         next: () => this.router.navigate(['/products']),
-        error: (error) => this.errorMessage.set(this.describeError(error))
+        error: (error) => { const message = this.describeError(error); this.errorMessage.set(message); this.notifications.error(message); }
       });
   }
 

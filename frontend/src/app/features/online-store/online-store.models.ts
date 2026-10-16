@@ -81,6 +81,11 @@ export interface OnlineOrderDetail {
   confirmedOn: string | null;
   cancelledOn: string | null;
   deliveredOn: string | null;
+  saleId: string | null;
+  invoiceNumber: string | null;
+  paidAmount: number;
+  dueAmount: number;
+  paymentStatus: 'Unpaid' | 'Partial' | 'Paid' | null;
   items: OnlineOrderLine[];
   history: OnlineOrderHistory[];
 }

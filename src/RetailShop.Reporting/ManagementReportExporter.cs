@@ -18,56 +18,69 @@ public interface IManagementReportExporter
 internal sealed class ManagementReportExporter(IConfiguration configuration) : IManagementReportExporter
 {
     private const long MaxLogoBytes = 2 * 1024 * 1024;
+    private const double Margin = 36d;
+    private const double FooterHeight = 24d;
+    private const string CurrencyFormat = "\"BDT\" #,##0.00";
     private readonly string mediaRoot = Path.GetFullPath(
         configuration["MediaStorage:RootPath"] ?? Path.Combine("..", "RetailShop.Media"),
         Directory.GetCurrentDirectory());
+
     public ManagementReportFile ExportPdf(ManagementReportPreview report, ShopSettingsResponse shop)
     {
         using var document = new PdfDocument();
         var landscape = report.Columns.Count > 5;
-        var page = AddPage(document, landscape);
-        var graphics = XGraphics.FromPdfPage(page);
         var regular = new XFont("Arial", 8);
         var bold = new XFont("Arial", 8, XFontStyleEx.Bold);
         var heading = new XFont("Arial", 16, XFontStyleEx.Bold);
-        var margin = 36d;
-        var y = margin;
-        DrawHeader(graphics, shop, report, margin, ref y, heading, regular);
-        var widths = ColumnWidths(page.Width.Point - (margin * 2), report.Columns.Count);
-        DrawTableHeader(graphics, report, widths, margin, ref y, bold);
+        var tableHeading = new XFont("Arial", 7.5, XFontStyleEx.Bold);
+        var page = AddPage(document, landscape);
+        var graphics = XGraphics.FromPdfPage(page);
+        var y = Margin;
+        var widths = ColumnWidths(page.Width.Point - (Margin * 2), report.Columns);
+        DrawHeader(graphics, shop, report, ref y, heading, regular);
+        DrawTableHeader(graphics, report, widths, ref y, tableHeading);
+
         foreach (var row in report.Rows)
         {
-            const double rowHeight = 20;
-            if (y + rowHeight > page.Height.Point - margin - 70)
+            var cells = report.Columns.Select(column => PdfSafeText(
+                row.Values.TryGetValue(column.Key, out var cell) ? cell.Display : string.Empty)).ToArray();
+            var lines = cells.Select((text, index) => WrapText(text, regular, widths[index] - 6)).ToArray();
+            var rowHeight = Math.Max(18d, lines.Max(line => line.Count) * 9.5d + 6d);
+            if (y + rowHeight > ContentBottom(page))
             {
-                page = AddPage(document, landscape);
                 graphics.Dispose();
+                page = AddPage(document, landscape);
                 graphics = XGraphics.FromPdfPage(page);
-                y = margin;
-                DrawHeader(graphics, shop, report, margin, ref y, heading, regular);
-                DrawTableHeader(graphics, report, widths, margin, ref y, bold);
+                y = Margin;
+                DrawHeader(graphics, shop, report, ref y, heading, regular);
+                DrawTableHeader(graphics, report, widths, ref y, tableHeading);
             }
-            var x = margin;
-            foreach (var (column, width) in report.Columns.Zip(widths))
-            {
-                row.Values.TryGetValue(column.Key, out var cell);
-                var format = column.IsNumeric ? XStringFormats.CenterRight : XStringFormats.CenterLeft;
-                graphics.DrawString(cell?.Display ?? string.Empty, regular, XBrushes.Black,
-                    new XRect(x + 3, y + 3, width - 6, rowHeight - 6), format);
-                graphics.DrawLine(XPens.LightGray, x, y + rowHeight, x + width, y + rowHeight);
-                x += width;
-            }
+
+            DrawRow(graphics, report.Columns, widths, lines, y, rowHeight, regular);
             y += rowHeight;
         }
-        y += 12;
+
+        y += 10;
         foreach (var summary in report.Summary)
         {
-            graphics.DrawString(summary.Label, bold, XBrushes.Black, new XRect(margin, y, 180, 14), XStringFormats.TopLeft);
-            graphics.DrawString(summary.Value, bold, XBrushes.Black, new XRect(margin + 180, y, 120, 14), XStringFormats.TopRight);
-            y += 16;
+            const double summaryHeight = 16d;
+            if (y + summaryHeight > ContentBottom(page))
+            {
+                graphics.Dispose();
+                page = AddPage(document, landscape);
+                graphics = XGraphics.FromPdfPage(page);
+                y = Margin;
+                DrawHeader(graphics, shop, report, ref y, heading, regular);
+            }
+            graphics.DrawString(PdfSafeText(summary.Label), bold, XBrushes.Black,
+                new XRect(Margin, y, 220, summaryHeight), XStringFormats.TopLeft);
+            graphics.DrawString(PdfSafeText(summary.Value), bold, XBrushes.Black,
+                new XRect(Margin + 220, y, 130, summaryHeight), XStringFormats.TopRight);
+            y += summaryHeight;
         }
-        graphics.DrawString(shop.ReceiptFooter, regular, XBrushes.DimGray,
-            new XRect(margin, page.Height.Point - margin, page.Width.Point - (margin * 2), 12), XStringFormats.TopCenter);
+        graphics.Dispose();
+
+        DrawFooters(document, shop, regular);
         using var stream = new MemoryStream();
         document.Save(stream, false);
         return new ManagementReportFile(FileName(report, "pdf"), "application/pdf", stream.ToArray());
@@ -77,18 +90,46 @@ internal sealed class ManagementReportExporter(IConfiguration configuration) : I
     {
         using var workbook = new XLWorkbook();
         var sheet = workbook.Worksheets.Add("Report");
+        var columnCount = Math.Max(1, report.Columns.Count);
+        var contact = string.Join(" · ", new[] { shop.Address, shop.Phone, shop.Email }
+            .Where(value => !string.IsNullOrWhiteSpace(value)));
+
         sheet.Cell(1, 1).Value = shop.ShopName;
-        sheet.Cell(2, 1).Value = report.Title;
-        sheet.Cell(3, 1).Value = report.PeriodLabel;
-        var headerRow = 5;
+        sheet.Range(1, 1, 1, columnCount).Merge();
+        sheet.Cell(1, 1).Style.Font.Bold = true;
+        sheet.Cell(1, 1).Style.Font.FontSize = 16;
+        sheet.Cell(1, 1).Style.Font.FontColor = XLColor.FromHtml("17365D");
+        if (!string.IsNullOrWhiteSpace(contact))
+        {
+            sheet.Cell(2, 1).Value = contact;
+            sheet.Range(2, 1, 2, columnCount).Merge();
+            sheet.Cell(2, 1).Style.Font.FontColor = XLColor.FromHtml("5B6573");
+        }
+        sheet.Cell(3, 1).Value = report.Title;
+        sheet.Range(3, 1, 3, columnCount).Merge();
+        sheet.Cell(3, 1).Style.Font.Bold = true;
+        sheet.Cell(4, 1).Value = report.PeriodLabel;
+        sheet.Range(4, 1, 4, columnCount).Merge();
+        sheet.Cell(4, 1).Style.Font.Italic = true;
+        sheet.Cell(4, 1).Style.Font.FontColor = XLColor.FromHtml("5B6573");
+
+        const int headerRow = 6;
         for (var column = 0; column < report.Columns.Count; column++)
         {
+            var definition = report.Columns.ElementAt(column);
             var cell = sheet.Cell(headerRow, column + 1);
-            cell.Value = report.Columns.ElementAt(column).Heading;
+            cell.Value = definition.Heading;
             cell.Style.Font.Bold = true;
-            cell.Style.Fill.BackgroundColor = XLColor.FromHtml("1F4E78");
             cell.Style.Font.FontColor = XLColor.White;
+            cell.Style.Fill.BackgroundColor = XLColor.FromHtml("17365D");
+            cell.Style.Alignment.Vertical = XLAlignmentVerticalValues.Center;
+            cell.Style.Alignment.WrapText = true;
+            cell.Style.Alignment.Horizontal = definition.IsNumeric
+                ? XLAlignmentHorizontalValues.Right
+                : XLAlignmentHorizontalValues.Left;
+            ConfigureColumn(sheet.Column(column + 1), definition);
         }
+
         var rowIndex = headerRow + 1;
         foreach (var row in report.Rows)
         {
@@ -97,41 +138,61 @@ internal sealed class ManagementReportExporter(IConfiguration configuration) : I
                 var definition = report.Columns.ElementAt(column);
                 row.Values.TryGetValue(definition.Key, out var value);
                 var cell = sheet.Cell(rowIndex, column + 1);
-                if (definition.IsNumeric && value?.Numeric is decimal number)
-                {
-                    cell.Value = number;
-                    cell.Style.NumberFormat.Format = definition.Heading.Contains("margin", StringComparison.OrdinalIgnoreCase)
-                        ? "0.00%" : "#,##0.00";
-                }
-                else cell.Value = SafeText(value?.Display);
+                WriteCell(cell, definition, value);
+                cell.Style.Alignment.Vertical = XLAlignmentVerticalValues.Top;
+                cell.Style.Alignment.WrapText = IsLongTextColumn(definition);
+                cell.Style.Alignment.Horizontal = definition.IsNumeric
+                    ? XLAlignmentHorizontalValues.Right
+                    : XLAlignmentHorizontalValues.Left;
             }
+            sheet.Row(rowIndex).AdjustToContents(15d, 72d);
             rowIndex++;
         }
+
         if (report.Summary.Count > 0)
         {
             rowIndex++;
             foreach (var summary in report.Summary)
             {
-                sheet.Cell(rowIndex, 1).Value = summary.Label;
+                var label = sheet.Cell(rowIndex, 1);
+                label.Value = summary.Label;
+                label.Style.Font.Bold = true;
+                label.Style.Border.TopBorder = XLBorderStyleValues.Thin;
                 if (summary.Numeric is decimal numeric)
                 {
-                    sheet.Cell(rowIndex, 2).Value = numeric;
-                    sheet.Cell(rowIndex, 2).Style.NumberFormat.Format = "#,##0.00";
+                    var value = sheet.Cell(rowIndex, Math.Min(2, columnCount));
+                    value.Value = numeric;
+                    value.Style.NumberFormat.Format = CurrencyFormat;
+                    value.Style.Font.Bold = true;
+                    value.Style.Alignment.Horizontal = XLAlignmentHorizontalValues.Right;
+                    value.Style.Border.TopBorder = XLBorderStyleValues.Thin;
                 }
-                else sheet.Cell(rowIndex, 2).Value = SafeText(summary.Value);
-                sheet.Cell(rowIndex, 1).Style.Font.Bold = true;
+                else sheet.Cell(rowIndex, Math.Min(2, columnCount)).Value = SafeText(summary.Value);
                 rowIndex++;
             }
         }
-        var range = sheet.Range(headerRow, 1, Math.Max(headerRow, rowIndex - 1), report.Columns.Count);
-        range.Style.Border.OutsideBorder = XLBorderStyleValues.Thin;
-        range.Style.Border.InsideBorder = XLBorderStyleValues.Hair;
-        sheet.Columns().AdjustToContents(8, 42);
+
+        if (report.Columns.Count > 0)
+        {
+            var range = sheet.Range(headerRow, 1, Math.Max(headerRow, rowIndex - 1), report.Columns.Count);
+            range.Style.Border.OutsideBorder = XLBorderStyleValues.Thin;
+            range.Style.Border.InsideBorder = XLBorderStyleValues.Hair;
+        }
         sheet.SheetView.FreezeRows(headerRow);
+        sheet.SheetView.FreezeColumns(1);
+        sheet.PageSetup.PageOrientation = report.Columns.Count > 5
+            ? XLPageOrientation.Landscape
+            : XLPageOrientation.Portrait;
+        sheet.PageSetup.FitToPages(1, 0);
+        sheet.PageSetup.SetRowsToRepeatAtTop(headerRow, headerRow);
         using var stream = new MemoryStream();
         workbook.SaveAs(stream);
-        return new ManagementReportFile(FileName(report, "xlsx"), "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", stream.ToArray());
+        return new ManagementReportFile(FileName(report, "xlsx"),
+            "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", stream.ToArray());
     }
+
+    internal static string PdfSafeText(string? value) =>
+        (value ?? string.Empty).Replace("৳", "BDT ", StringComparison.Ordinal);
 
     private static PdfPage AddPage(PdfDocument document, bool landscape)
     {
@@ -141,17 +202,32 @@ internal sealed class ManagementReportExporter(IConfiguration configuration) : I
         return page;
     }
 
-    private void DrawHeader(XGraphics g, ShopSettingsResponse shop, ManagementReportPreview report, double margin, ref double y, XFont heading, XFont regular)
+    private void DrawHeader(XGraphics graphics, ShopSettingsResponse shop,
+        ManagementReportPreview report, ref double y, XFont heading, XFont regular)
     {
-        var logoWidth = TryDrawLogo(g, shop.LogoUrl, margin, y) ? 58d : 0d;
-        g.DrawString(shop.ShopName, heading, XBrushes.Black, new XRect(margin + logoWidth, y, 400 - logoWidth, 22), XStringFormats.TopLeft);
-        y += 25;
-        var contact = string.Join(" · ", new[] { shop.Address, shop.Phone, shop.Email }.Where(x => !string.IsNullOrWhiteSpace(x)));
-        g.DrawString(contact, regular, XBrushes.DimGray, new XRect(margin, y, 500, 14), XStringFormats.TopLeft);
+        var logoWidth = TryDrawLogo(graphics, shop.LogoUrl, Margin, y) ? 58d : 0d;
+        var detailsX = Margin + logoWidth;
+        graphics.DrawString(PdfSafeText(shop.ShopName), heading, XBrushes.Black,
+            new XRect(detailsX, y, 370 - logoWidth, 22), XStringFormats.TopLeft);
+        y += 23;
+
+        var contactParts = new[] { shop.Address, shop.Phone, shop.Email,
+                string.IsNullOrWhiteSpace(shop.TaxRegistrationNumber) ? null : $"Tax ID: {shop.TaxRegistrationNumber}" }
+            .Where(value => !string.IsNullOrWhiteSpace(value));
+        foreach (var line in WrapText(PdfSafeText(string.Join(" · ", contactParts)), regular, 500))
+        {
+            graphics.DrawString(line, regular, XBrushes.DimGray,
+                new XRect(Margin, y, 500, 11), XStringFormats.TopLeft);
+            y += 10;
+        }
+        y += 5;
+        graphics.DrawString(PdfSafeText(report.Title), new XFont("Arial", 11, XFontStyleEx.Bold), XBrushes.Black,
+            new XRect(Margin, y, 390, 16), XStringFormats.TopLeft);
+        graphics.DrawString(PdfSafeText(report.PeriodLabel), regular, XBrushes.DimGray,
+            new XRect(Margin + 390, y, 140, 16), XStringFormats.TopRight);
         y += 22;
-        g.DrawString(report.Title, new XFont("Arial", 11, XFontStyleEx.Bold), XBrushes.Black, new XRect(margin, y, 400, 16), XStringFormats.TopLeft);
-        g.DrawString(report.PeriodLabel, regular, XBrushes.DimGray, new XRect(margin, y, 500, 16), XStringFormats.TopRight);
-        y += 25;
+        graphics.DrawLine(XPens.LightGray, Margin, y, graphics.PageSize.Width - Margin, y);
+        y += 8;
     }
 
     private bool TryDrawLogo(XGraphics graphics, string? logoKey, double x, double y)
@@ -163,13 +239,12 @@ internal sealed class ManagementReportExporter(IConfiguration configuration) : I
             using var image = XImage.FromFile(path);
             var ratio = image.PixelWidth == 0 ? 1 : (double)image.PixelHeight / image.PixelWidth;
             var width = 48d;
-            var height = Math.Min(34d, width * ratio);
+            var height = Math.Min(36d, width * ratio);
             graphics.DrawImage(image, x, y, width, height);
             return true;
         }
         catch
         {
-            // Invalid or unsupported assets never prevent an authorized report export.
             return false;
         }
     }
@@ -195,19 +270,129 @@ internal sealed class ManagementReportExporter(IConfiguration configuration) : I
         return png || jpeg ? path : null;
     }
 
-    private static void DrawTableHeader(XGraphics g, ManagementReportPreview report, double[] widths, double margin, ref double y, XFont bold)
+    private static void DrawTableHeader(XGraphics graphics, ManagementReportPreview report,
+        IReadOnlyList<double> widths, ref double y, XFont bold)
     {
-        var x = margin;
+        const double height = 24d;
+        var x = Margin;
         foreach (var (column, width) in report.Columns.Zip(widths))
         {
-            g.DrawRectangle(XBrushes.LightGray, x, y, width, 18);
-            g.DrawString(column.Heading, bold, XBrushes.Black, new XRect(x + 3, y + 3, width - 6, 12), column.IsNumeric ? XStringFormats.CenterRight : XStringFormats.CenterLeft);
+            graphics.DrawRectangle(XBrushes.LightGray, x, y, width, height);
+            var lines = WrapText(PdfSafeText(column.Heading), bold, width - 6).Take(2).ToArray();
+            for (var index = 0; index < lines.Length; index++)
+            {
+                graphics.DrawString(lines[index], bold, XBrushes.Black,
+                    new XRect(x + 3, y + 3 + (index * 8.5d), width - 6, 10),
+                    column.IsNumeric ? XStringFormats.TopRight : XStringFormats.TopLeft);
+            }
             x += width;
         }
-        y += 18;
+        y += height;
     }
 
-    private static double[] ColumnWidths(double available, int count) => Enumerable.Repeat(available / Math.Max(count, 1), Math.Max(count, 1)).ToArray();
+    private static void DrawRow(XGraphics graphics, IReadOnlyCollection<ManagementReportColumn> columns,
+        IReadOnlyList<double> widths, IReadOnlyList<IReadOnlyList<string>> lines, double y,
+        double rowHeight, XFont regular)
+    {
+        var x = Margin;
+        foreach (var ((column, width), cellLines) in columns.Zip(widths).Zip(lines))
+        {
+            for (var index = 0; index < cellLines.Count; index++)
+            {
+                graphics.DrawString(cellLines[index], regular, XBrushes.Black,
+                    new XRect(x + 3, y + 3 + (index * 9.5d), width - 6, 10),
+                    column.IsNumeric ? XStringFormats.TopRight : XStringFormats.TopLeft);
+            }
+            graphics.DrawLine(XPens.LightGray, x, y + rowHeight, x + width, y + rowHeight);
+            x += width;
+        }
+    }
+
+    private static void DrawFooters(PdfDocument document, ShopSettingsResponse shop, XFont regular)
+    {
+        for (var index = 0; index < document.PageCount; index++)
+        {
+            var page = document.Pages[index];
+            using var graphics = XGraphics.FromPdfPage(page);
+            graphics.DrawLine(XPens.LightGray, Margin, page.Height.Point - Margin - FooterHeight + 4,
+                page.Width.Point - Margin, page.Height.Point - Margin - FooterHeight + 4);
+            graphics.DrawString(PdfSafeText(shop.ReceiptFooter), regular, XBrushes.DimGray,
+                new XRect(Margin, page.Height.Point - Margin - 12, page.Width.Point - (Margin * 2) - 60, 12), XStringFormats.TopLeft);
+            graphics.DrawString($"Page {index + 1} of {document.PageCount}", regular, XBrushes.DimGray,
+                new XRect(page.Width.Point - Margin - 60, page.Height.Point - Margin - 12, 60, 12), XStringFormats.TopRight);
+        }
+    }
+
+    private static double ContentBottom(PdfPage page) => page.Height.Point - Margin - FooterHeight;
+
+    private static IReadOnlyList<double> ColumnWidths(double available, IReadOnlyCollection<ManagementReportColumn> columns)
+    {
+        var weights = columns.Select(column => column.Key switch
+        {
+            "items" or "description" => 3.6d,
+            "customer" or "product" or "payee" => 1.8d,
+            "invoice" or "voucher" or "code" or "date" or "status" or "payment" => 1.1d,
+            _ when column.IsNumeric => 1.0d,
+            _ => 1.3d
+        }).ToArray();
+        var totalWeight = weights.Sum();
+        return weights.Select(weight => available * (weight / totalWeight)).ToArray();
+    }
+
+    private static IReadOnlyList<string> WrapText(string value, XFont font, double width)
+    {
+        if (string.IsNullOrWhiteSpace(value)) return [string.Empty];
+        var words = value.Split(' ', StringSplitOptions.RemoveEmptyEntries);
+        var result = new List<string>();
+        var line = string.Empty;
+        foreach (var word in words)
+        {
+            var proposed = string.IsNullOrEmpty(line) ? word : $"{line} {word}";
+            if (Measure(proposed, font) <= width || string.IsNullOrEmpty(line)) { line = proposed; continue; }
+            result.Add(line);
+            line = word;
+        }
+        if (!string.IsNullOrEmpty(line)) result.Add(line);
+        return result;
+    }
+
+    private static double Measure(string value, XFont font) => value.Length * (font.Size * 0.56d);
+
+    private static void ConfigureColumn(IXLColumn column, ManagementReportColumn definition)
+    {
+        column.Width = definition.Key switch
+        {
+            "items" or "description" => 44d,
+            "product" or "customer" or "payee" => 28d,
+            "invoice" or "voucher" => 17d,
+            "date" => 13d,
+            _ when definition.IsNumeric => 15d,
+            _ => 18d
+        };
+    }
+
+    private static void WriteCell(IXLCell cell, ManagementReportColumn definition, ManagementReportCell? value)
+    {
+        if (definition.IsNumeric && value?.Numeric is decimal number)
+        {
+            cell.Value = number;
+            cell.Style.NumberFormat.Format = IsPercentageColumn(definition) ? "0.00%" : IsCurrencyColumn(definition) ? CurrencyFormat : "#,##0.00";
+            return;
+        }
+        if (definition.Key == "date" && DateOnly.TryParse(value?.Display, out var date))
+        {
+            cell.Value = date.ToDateTime(TimeOnly.MinValue);
+            cell.Style.NumberFormat.Format = "dd mmm yyyy";
+            return;
+        }
+        cell.Value = SafeText(value?.Display);
+    }
+
+    private static bool IsLongTextColumn(ManagementReportColumn column) => column.Key is "items" or "description" or "product" or "customer" or "payee";
+    private static bool IsPercentageColumn(ManagementReportColumn column) => column.Key.Contains("margin", StringComparison.OrdinalIgnoreCase) || column.Heading.Contains("margin", StringComparison.OrdinalIgnoreCase);
+    private static bool IsCurrencyColumn(ManagementReportColumn column) =>
+        column.Key is "total" or "discount" or "tax" or "paid" or "due" or "revenue" or "cost" or "profit" or "averageCost" or "stockValue" or "creditLimit" or "balance" or "amount" ||
+        column.Heading.Contains("amount", StringComparison.OrdinalIgnoreCase) || column.Heading.Contains("total", StringComparison.OrdinalIgnoreCase) || column.Heading.Contains("cost", StringComparison.OrdinalIgnoreCase) || column.Heading.Contains("value", StringComparison.OrdinalIgnoreCase) || column.Heading.Contains("balance", StringComparison.OrdinalIgnoreCase);
     private static string SafeText(string? value) => !string.IsNullOrEmpty(value) && "=+-@".Contains(value[0]) ? "'" + value : value ?? string.Empty;
     private static string FileName(ManagementReportPreview report, string extension) => $"bshop-{report.Kind.ToString().ToLowerInvariant()}-{DateTime.UtcNow:yyyyMMdd}.{extension}";
 }

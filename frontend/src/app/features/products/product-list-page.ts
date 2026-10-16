@@ -11,6 +11,8 @@ import { RouterLink } from '@angular/router';
 import { AuthService } from '../../core/auth/auth.service';
 import { permissions } from '../../core/auth/permissions';
 import { ProductApiService } from './product-api.service';
+import { ProductMediaPreviewService } from './product-media-preview.service';
+import { OperationNotificationService } from '../../core/notifications/operation-notification.service';
 import { ProductListItem } from './product.models';
 
 @Component({
@@ -65,8 +67,8 @@ import { ProductListItem } from './product.models';
               <td mat-cell *matCellDef="let product">
                 <div class="product-cell">
                   <div class="product-thumbnail">
-                    @if (product.imageUrl) {
-                      <img [src]="product.imageUrl" [alt]="product.name" (error)="showImagePlaceholder($event)" />
+                    @if (thumbnailUrl(product.id); as imageUrl) {
+                      <img [src]="imageUrl" [alt]="product.name" (error)="showImagePlaceholder($event)" />
                       <span class="product-thumbnail__placeholder" aria-hidden="true">▧</span>
                     } @else { <span aria-hidden="true">▧</span> }
                   </div>
@@ -172,6 +174,8 @@ import { ProductListItem } from './product.models';
 })
 export class ProductListPage implements OnInit {
   private readonly api = inject(ProductApiService);
+  private readonly mediaPreviews = inject(ProductMediaPreviewService);
+  private readonly notifications = inject(OperationNotificationService);
   private readonly auth = inject(AuthService);
 
   protected readonly displayedColumns = [
@@ -189,6 +193,8 @@ export class ProductListPage implements OnInit {
   protected readonly totalCount = signal(0);
   protected readonly loading = signal(false);
   protected readonly errorMessage = signal('');
+  protected readonly thumbnails = signal<Record<string, string | null>>({});
+  private thumbnailLoadVersion = 0;
 
   ngOnInit(): void {
     this.load(1);
@@ -208,6 +214,7 @@ export class ProductListPage implements OnInit {
     this.api.getProducts(this.searchControl.value, page).subscribe({
       next: (result) => {
         this.items.set(result.items);
+        this.loadThumbnails(result.items);
         this.page.set(result.page);
         this.totalPages.set(result.totalPages);
         this.totalCount.set(result.totalCount);
@@ -226,13 +233,29 @@ export class ProductListPage implements OnInit {
     }
 
     this.api.deleteProduct(product.id).subscribe({
-      next: () => this.load(this.page()),
-      error: (error) => this.errorMessage.set(this.describeError(error))
+      next: () => { this.notifications.success('Product deleted.'); this.load(this.page()); },
+      error: (error) => { const message = this.describeError(error); this.errorMessage.set(message); this.notifications.error(message); }
     });
   }
 
   protected showImagePlaceholder(event: Event): void {
     (event.currentTarget as HTMLImageElement).hidden = true;
+  }
+
+  protected thumbnailUrl(productId: string): string | null {
+    return this.thumbnails()[productId] ?? null;
+  }
+
+  private loadThumbnails(products: ProductListItem[]): void {
+    const requestVersion = ++this.thumbnailLoadVersion;
+    this.thumbnails.set({});
+    for (const product of products) {
+      if (!product.imageUrl) continue;
+      this.mediaPreviews.preview(product.imageUrl).subscribe((imageUrl) => {
+        if (requestVersion !== this.thumbnailLoadVersion) return;
+        this.thumbnails.update((current) => ({ ...current, [product.id]: imageUrl }));
+      });
+    }
   }
 
   private describeError(error: unknown): string {
