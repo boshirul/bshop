@@ -13,7 +13,8 @@ public sealed record ForgotPasswordRequest(
 public sealed record ResetPasswordRequest(
     [param: Required, EmailAddress] string Email,
     [param: Required] string Token,
-    [param: Required, MinLength(8)] string NewPassword);
+    [param: Required, MinLength(8)] string NewPassword,
+    [param: Required] string ConfirmNewPassword);
 
 public sealed record CurrentUserResponse(
     Guid Id,
@@ -90,6 +91,7 @@ public interface IPasswordResetNotifier
 {
     Task SendAsync(
         string email,
+        string displayName,
         string resetToken,
         CancellationToken cancellationToken);
 }

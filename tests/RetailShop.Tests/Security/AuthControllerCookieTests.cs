@@ -4,6 +4,7 @@ using System.Security.Claims;
 using RetailShop.Api.Controllers;
 using RetailShop.Application.Authentication;
 using RetailShop.Application.Common;
+using RetailShop.Shared.Contracts;
 
 namespace RetailShop.Tests.Security;
 
@@ -97,6 +98,19 @@ public sealed class AuthControllerCookieTests
 
         Assert.IsType<OkObjectResult>(result.Result);
         AssertCookiePath(context, "/BShopApi/api/auth");
+    }
+
+    [Theory]
+    [InlineData("registered@example.test")]
+    [InlineData("unknown@example.test")]
+    public async Task ForgotPassword_AlwaysReturnsTheSameGenericResponse(string email)
+    {
+        var controller = CreateController(new TestIdentityService(), CreateContext(string.Empty));
+        var result = await controller.ForgotPassword(new ForgotPasswordRequest(email), CancellationToken.None);
+        var ok = Assert.IsType<OkObjectResult>(result.Result);
+        var response = Assert.IsType<ApiResponse<string>>(ok.Value);
+        Assert.Equal("If an account exists for this email address, password reset instructions will be sent.", response.Data);
+        Assert.DoesNotContain(email, response.Data, StringComparison.OrdinalIgnoreCase);
     }
 
     private static AuthController CreateController(

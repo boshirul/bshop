@@ -82,6 +82,7 @@ public sealed class AuthController(IIdentityService identityService) : Controlle
 
     [AllowAnonymous]
     [HttpPost("forgot-password")]
+    [EnableRateLimiting("PasswordRecovery")]
     [ProducesResponseType<ApiResponse<string>>(StatusCodes.Status200OK)]
     public async Task<ActionResult<ApiResponse<string>>> ForgotPassword(
         ForgotPasswordRequest request,
@@ -89,11 +90,12 @@ public sealed class AuthController(IIdentityService identityService) : Controlle
     {
         await identityService.ForgotPasswordAsync(request, cancellationToken);
         return Ok(ApiResponse<string>.Success(
-            "If the account exists, password reset instructions have been sent."));
+            "If an account exists for this email address, password reset instructions will be sent."));
     }
 
     [AllowAnonymous]
     [HttpPost("reset-password")]
+    [EnableRateLimiting("PasswordRecovery")]
     [ProducesResponseType<ApiResponse<bool>>(StatusCodes.Status200OK)]
     [ProducesResponseType<ApiResponse<bool>>(StatusCodes.Status400BadRequest)]
     public async Task<ActionResult<ApiResponse<bool>>> ResetPassword(

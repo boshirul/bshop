@@ -31,7 +31,8 @@ import { AuthService } from '../../core/auth/auth.service';
           <form [formGroup]="form" (ngSubmit)="submit()">
             <mat-form-field appearance="outline">
               <mat-label>Email</mat-label>
-              <input matInput type="email" formControlName="email" />
+              <input matInput type="email" formControlName="email" autocomplete="email" />
+              @if (form.controls.email.touched && form.controls.email.invalid) { <mat-error>Enter a valid email address.</mat-error> }
             </mat-form-field>
 
             @if (message()) {
@@ -74,10 +75,10 @@ export class ForgotPasswordPage {
       .forgotPassword(this.form.controls.email.value)
       .pipe(finalize(() => this.submitting.set(false)))
       .subscribe({
-        next: (message) => this.message.set(message),
+        next: () => this.message.set('If an account exists for this email address, password reset instructions will be sent.'),
         error: () =>
           this.message.set(
-            'If the account exists, password reset instructions will be sent.'
+            'If an account exists for this email address, password reset instructions will be sent.'
           )
       });
   }

@@ -6,6 +6,7 @@ using Microsoft.IdentityModel.Tokens;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Options;
 using RetailShop.Application.Administration;
 using RetailShop.Application.Auditing;
 using RetailShop.Application.Authentication;
@@ -97,6 +98,17 @@ public static class DependencyInjection
             .AddSignInManager()
             .AddDefaultTokenProviders();
 
+        var passwordResetSection = configuration.GetSection(PasswordResetOptions.SectionName);
+        var passwordReset = passwordResetSection.Get<PasswordResetOptions>() ?? new PasswordResetOptions();
+        if (passwordReset.ExpirationMinutes is < 5 or > 1440)
+        {
+            throw new InvalidOperationException("Password reset expiration must be between 5 and 1440 minutes.");
+        }
+        services.Configure<PasswordResetOptions>(passwordResetSection);
+        services.Configure<SmtpOptions>(configuration.GetSection(SmtpOptions.SectionName));
+        services.Configure<DataProtectionTokenProviderOptions>(options =>
+            options.TokenLifespan = TimeSpan.FromMinutes(passwordReset.ExpirationMinutes));
+
         services
             .AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
             .AddJwtBearer(options =>
@@ -132,7 +144,7 @@ public static class DependencyInjection
 
         services.AddScoped<TokenService>();
         services.AddScoped<IIdentityService, IdentityService>();
-        services.AddScoped<IPasswordResetNotifier, LoggingPasswordResetNotifier>();
+        services.AddScoped<IPasswordResetNotifier, SmtpPasswordResetNotifier>();
         services.AddScoped<IUserAdministrationService, UserAdministrationService>();
         services.AddScoped<IAuditService, AuditService>();
         services.AddScoped<IAuditLogService, AuditLogService>();

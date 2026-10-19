@@ -329,6 +329,36 @@ Development still runs over `http://127.0.0.1` when the environment is
 Development. Production should provide HTTPS certificates and replace all
 development secrets before launch.
 
+### Password-reset email configuration
+
+Password recovery uses ASP.NET Core Identity data-protected, one-time reset
+tokens and configurable SMTP delivery. Reset links are built only from the
+trusted `PasswordReset:PublicApplicationUrl` setting; request host headers are
+never used. For the current IIS virtual directory, use the externally reachable
+frontend origin including `/BShop`, for example `https://shop.example.com/BShop`.
+
+Configure these values using IIS protected configuration, environment variables,
+or another secret provider. Do not place SMTP passwords in committed JSON files:
+
+```text
+PasswordReset__PublicApplicationUrl=https://shop.example.com/BShop
+PasswordReset__ExpirationMinutes=30
+Email__Smtp__Host=smtp.example.com
+Email__Smtp__Port=587
+Email__Smtp__EnableSsl=true
+Email__Smtp__SenderAddress=no-reply@example.com
+Email__Smtp__SenderDisplayName=BShop
+Email__Smtp__Username=smtp-account
+Email__Smtp__Password=<secret>
+Email__Smtp__TimeoutSeconds=15
+```
+
+The public URL must use HTTPS except for an explicit loopback development URL.
+If SMTP or the public URL is missing, the public endpoint retains its generic
+anti-enumeration response while the server records a delivery failure without
+logging the reset token or link. No real email is sent until valid provider
+settings are supplied.
+
 ## User acceptance, deployment, and launch
 
 Phase 16 launch-readiness assets are available in:

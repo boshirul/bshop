@@ -116,12 +116,13 @@ export class AuthService {
       .pipe(map((response) => response.data ?? response.message ?? 'Request accepted.'));
   }
 
-  resetPassword(email: string, token: string, newPassword: string): Observable<boolean> {
+  resetPassword(email: string, token: string, newPassword: string, confirmNewPassword: string): Observable<boolean> {
     return this.http
       .post<ApiResponse<boolean>>(`${this.apiBaseUrl}/auth/reset-password`, {
         email,
         token,
-        newPassword
+        newPassword,
+        confirmNewPassword
       })
       .pipe(map((response) => response.succeeded));
   }

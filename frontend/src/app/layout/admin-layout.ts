@@ -1,5 +1,5 @@
 import { HttpClient } from '@angular/common/http';
-import { Component, effect, HostListener, inject, OnInit, signal } from '@angular/core';
+import { Component, effect, HostListener, inject, OnDestroy, OnInit, signal } from '@angular/core';
 import { MatButtonModule } from '@angular/material/button';
 import { MatListModule } from '@angular/material/list';
 import { MatSidenavModule } from '@angular/material/sidenav';
@@ -31,7 +31,7 @@ interface NavigationItem {
   ],
   templateUrl: './admin-layout.html'
 })
-export class AdminLayout implements OnInit {
+export class AdminLayout implements OnInit, OnDestroy {
   protected readonly auth = inject(AuthService);
   private readonly router = inject(Router);
   private readonly http = inject(HttpClient);
@@ -40,6 +40,7 @@ export class AdminLayout implements OnInit {
   protected readonly sidebarCollapsed = signal(false);
   protected readonly isMobile = signal(window.innerWidth <= 760);
   protected readonly mobileDrawerOpen = signal(false);
+  private avatarObjectUrl: string | null = null;
 
   constructor() {
     effect(() => {
@@ -124,9 +125,17 @@ export class AdminLayout implements OnInit {
     if (this.auth.currentUser()?.avatarUrl) this.loadAvatar();
   }
 
+  ngOnDestroy(): void {
+    if (this.avatarObjectUrl) URL.revokeObjectURL(this.avatarObjectUrl);
+  }
+
   private loadAvatar(): void {
     this.http.get(`${this.apiBaseUrl}/auth/profile/photo/content`, { responseType: 'blob' }).subscribe({
-      next: blob => this.avatarUrl.set(URL.createObjectURL(blob))
+      next: blob => {
+        if (this.avatarObjectUrl) URL.revokeObjectURL(this.avatarObjectUrl);
+        this.avatarObjectUrl = URL.createObjectURL(blob);
+        this.avatarUrl.set(this.avatarObjectUrl);
+      }
     });
   }
 

@@ -6,6 +6,7 @@ using RetailShop.Infrastructure.Persistence;
 using RetailShop.Application.Security;
 using RetailShop.Application.Auditing;
 using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.Logging;
 
 namespace RetailShop.Infrastructure.Identity;
 
@@ -16,7 +17,8 @@ internal sealed class IdentityService(
     RetailShopDbContext dbContext,
     IPasswordResetNotifier passwordResetNotifier,
     IAuditService audit,
-    IConfiguration configuration) : IIdentityService
+    IConfiguration configuration,
+    ILogger<IdentityService> logger) : IIdentityService
 {
     public async Task<OperationResult<AuthenticationSession>> LoginAsync(
         LoginRequest request,
@@ -147,26 +149,45 @@ internal sealed class IdentityService(
         CancellationToken cancellationToken)
     {
         var user = await userManager.FindByEmailAsync(request.Email.Trim());
-        if (user is null || !user.IsActive)
+        if (user is null || !user.IsActive || !user.EmailConfirmed || string.IsNullOrWhiteSpace(user.Email))
         {
             return;
         }
 
         var token = await userManager.GeneratePasswordResetTokenAsync(user);
-        await passwordResetNotifier.SendAsync(
-            user.Email ?? request.Email,
-            token,
-            cancellationToken);
+        try
+        {
+            await passwordResetNotifier.SendAsync(
+                user.Email!,
+                user.FullName,
+                token,
+                cancellationToken);
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            throw;
+        }
+        catch (Exception exception)
+        {
+            logger.LogError(exception, "Password-reset email delivery failed. No reset token or link was logged.");
+            await WriteSecurityAuditAsync("PasswordResetDeliveryFailed", user.Id, "Password-reset instructions could not be delivered.", null, cancellationToken);
+            return;
+        }
+        await WriteSecurityAuditAsync("RequestPasswordReset", user.Id, "User requested password-reset instructions.", null, cancellationToken);
     }
 
     public async Task<OperationResult<bool>> ResetPasswordAsync(
         ResetPasswordRequest request,
         CancellationToken cancellationToken)
     {
-        var user = await userManager.FindByEmailAsync(request.Email.Trim());
-        if (user is null || !user.IsActive)
+        if (request.NewPassword != request.ConfirmNewPassword)
         {
-            return OperationResult<bool>.Failure("The reset request is invalid.");
+            return OperationResult<bool>.Failure("The new passwords do not match.");
+        }
+        var user = await userManager.FindByEmailAsync(request.Email.Trim());
+        if (user is null || !user.IsActive || !user.EmailConfirmed)
+        {
+            return OperationResult<bool>.Failure("The reset link is invalid, expired, or already used.");
         }
 
         var result = await userManager.ResetPasswordAsync(
@@ -176,6 +197,11 @@ internal sealed class IdentityService(
 
         if (!result.Succeeded)
         {
+            await WriteSecurityAuditAsync("PasswordResetFailed", user.Id, "A password-reset attempt was rejected.", null, cancellationToken);
+            if (result.Errors.Any(error => error.Code is "InvalidToken" or "ConcurrencyFailure"))
+            {
+                return OperationResult<bool>.Failure("The reset link is invalid, expired, or already used.");
+            }
             return OperationResult<bool>.Failure(
                 result.Errors.Select(error => error.Description));
         }
@@ -190,6 +216,7 @@ internal sealed class IdentityService(
         }
 
         await dbContext.SaveChangesAsync(cancellationToken);
+        await WriteSecurityAuditAsync("ResetPassword", user.Id, "User completed a password reset; active refresh sessions were revoked.", user.Id, cancellationToken);
         return OperationResult<bool>.Success(true);
     }
 
@@ -260,6 +287,22 @@ internal sealed class IdentityService(
 
     private static string? GetImageExtension(ReadOnlySpan<byte> bytes) => bytes.Length >= 3 && bytes[..3].SequenceEqual(new byte[] { 0xFF, 0xD8, 0xFF }) ? ".jpg" : bytes.Length >= 8 && bytes[..8].SequenceEqual(new byte[] { 0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A }) ? ".png" : bytes.Length >= 12 && bytes[..4].SequenceEqual("RIFF"u8) && bytes.Slice(8, 4).SequenceEqual("WEBP"u8) ? ".webp" : null;
     private static string? SafePath(string root, string key) { var fullRoot = Path.GetFullPath(root); var path = Path.GetFullPath(Path.Combine(fullRoot, key.Replace('/', Path.DirectorySeparatorChar))); return path.StartsWith(fullRoot + Path.DirectorySeparatorChar, StringComparison.OrdinalIgnoreCase) ? path : null; }
+
+    private async Task WriteSecurityAuditAsync(string action, Guid userId, string description, Guid? performedBy, CancellationToken cancellationToken)
+    {
+        try
+        {
+            await audit.WriteAsync(action, "UserProfile", userId.ToString(), description, performedBy, cancellationToken);
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            throw;
+        }
+        catch (Exception exception)
+        {
+            logger.LogError(exception, "A password-recovery security audit event could not be recorded. Action: {Action}", action);
+        }
+    }
 
     private async Task<AuthenticationSession> CreateSessionAsync(
         ApplicationUser user,

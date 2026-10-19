@@ -5,25 +5,28 @@ import { MatButtonModule } from '@angular/material/button';
 import { MatCardModule } from '@angular/material/card';
 import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatInputModule } from '@angular/material/input';
+import { MatDialog, MatDialogModule } from '@angular/material/dialog';
 import { Router } from '@angular/router';
 import { ApiResponse } from '../../core/auth/auth.models';
 import { AuthService } from '../../core/auth/auth.service';
 import { API_BASE_URL } from '../../core/http/api-base-url.token';
 import { OperationNotificationService } from '../../core/notifications/operation-notification.service';
 import { passwordsMatchValidator } from './password-validation';
+import { ProfilePhotoEditorDialog } from './profile-photo-editor-dialog';
+import { validateProfilePhoto } from './profile-photo-editor';
 
 interface Profile { fullName: string; userName: string; email: string; isActive: boolean; roles: string[]; avatarUrl: string | null; }
 
 @Component({
   selector: 'app-profile-page',
-  imports: [ReactiveFormsModule, MatButtonModule, MatCardModule, MatFormFieldModule, MatInputModule],
+  imports: [ReactiveFormsModule, MatButtonModule, MatCardModule, MatFormFieldModule, MatInputModule, MatDialogModule],
   template: `
     <header class="page-header"><div><p class="eyebrow">ACCOUNT</p><h1>My profile</h1><p>Manage your sign-in security and profile photo.</p></div></header>
     @if (profile(); as item) { <section class="profile-grid">
       <mat-card appearance="outlined" class="transaction-panel"><mat-card-content>
         <div class="avatar">@if (avatar()) { <img [src]="avatar()" alt="Profile photo"/> } @else { {{ item.fullName.slice(0, 1) }} }</div>
         <h2>{{ item.fullName }}</h2><p>{{ item.email }}</p><p>Username: {{ item.userName }}</p><p>Roles: {{ item.roles.join(', ') || 'None' }}</p>
-        <label class="transaction-primary">Change profile photo<input type="file" accept="image/jpeg,image/png,image/webp" hidden (change)="upload($event)" /></label><p class="transaction-helper">JPEG, PNG, or WebP up to 2 MB.</p>
+        <label class="transaction-primary" [class.disabled]="uploading()">{{ uploading() ? 'Uploading photo…' : 'Change profile photo' }}<input type="file" accept="image/jpeg,image/png,image/webp" hidden [disabled]="uploading()" (change)="selectPhoto($event)" /></label><p class="transaction-helper">JPEG, PNG, or WebP up to 2 MB. Crop output: 512 × 512.</p>
       </mat-card-content></mat-card>
       <mat-card appearance="outlined" class="transaction-panel"><mat-card-content><h2>Change password</h2>
         <p class="transaction-helper">Use at least 8 characters with uppercase, lowercase, a number, and a symbol.</p>
@@ -56,10 +59,12 @@ export class ProfilePage implements OnInit, OnDestroy {
   private readonly auth = inject(AuthService);
   private readonly router = inject(Router);
   private readonly notifications = inject(OperationNotificationService);
+  private readonly dialog = inject(MatDialog);
   private avatarObjectUrl: string | null = null;
   protected readonly profile = signal<Profile | null>(null);
   protected readonly avatar = signal<string | null>(null);
   protected readonly saving = signal(false);
+  protected readonly uploading = signal(false);
   protected readonly submitted = signal(false);
   protected readonly showCurrentPassword = signal(false);
   protected readonly showNewPassword = signal(false);
@@ -73,15 +78,30 @@ export class ProfilePage implements OnInit, OnDestroy {
   ngOnInit(): void { this.load(); }
   ngOnDestroy(): void { if (this.avatarObjectUrl) URL.revokeObjectURL(this.avatarObjectUrl); }
 
-  protected upload(event: Event): void {
-    const file = (event.target as HTMLInputElement).files?.[0];
+  protected selectPhoto(event: Event): void {
+    const input = event.target as HTMLInputElement;
+    const file = input.files?.[0];
+    input.value = '';
     if (!file) return;
-    if (file.size > 2 * 1024 * 1024) { this.notifications.error('Profile photos must be 2 MB or smaller.'); return; }
+    const validationError = validateProfilePhoto(file);
+    if (validationError) { this.notifications.error(validationError); return; }
+    this.dialog.open(ProfilePhotoEditorDialog, {
+      data: file,
+      width: 'min(44rem, calc(100vw - 1rem))',
+      maxWidth: 'calc(100vw - 1rem)',
+      disableClose: false,
+      autoFocus: false
+    }).afterClosed().subscribe(cropped => { if (cropped) this.uploadPhoto(cropped); });
+  }
+
+  private uploadPhoto(file: File): void {
+    if (this.uploading()) return;
+    this.uploading.set(true);
     const body = new FormData(); body.append('file', file);
     const progress = this.notifications.loading('Uploading profile photo…');
     this.http.post<ApiResponse<string>>(`${this.api}/auth/profile/photo`, body).subscribe({
-      next: (response) => { progress.dismiss(); if (!response.succeeded) { this.notifications.error(response.errors[0] ?? 'Photo could not be updated.'); return; } this.auth.markAvatarChanged(); this.loadAvatar(); this.notifications.success('Profile photo updated.'); },
-      error: (error) => { progress.dismiss(); this.notifications.error(this.describeError(error, 'Photo could not be updated.')); }
+      next: (response) => { progress.dismiss(); this.uploading.set(false); if (!response.succeeded) { this.notifications.error(response.errors[0] ?? 'Photo could not be updated.'); return; } this.auth.markAvatarChanged(); this.loadAvatar(); this.notifications.success('Profile photo updated.'); },
+      error: (error) => { progress.dismiss(); this.uploading.set(false); this.notifications.error(this.describeError(error, 'Photo could not be updated.')); }
     });
   }
 
