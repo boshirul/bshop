@@ -8,6 +8,7 @@ import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatInputModule } from '@angular/material/input';
 import { MatSelectModule } from '@angular/material/select';
 import { ActivatedRoute, Router, RouterLink } from '@angular/router';
+import { OperationNotificationService } from '../../core/notifications/operation-notification.service';
 import { SettingsApiService } from '../settings/settings-api.service';
 import { PaymentMethodItem } from '../settings/settings.models';
 import { SalesApiService } from './sales-api.service';
@@ -44,6 +45,7 @@ export class SalePaymentPage implements OnInit {
   private readonly settings = inject(SettingsApiService);
   private readonly route = inject(ActivatedRoute);
   private readonly router = inject(Router);
+  private readonly notifications = inject(OperationNotificationService);
   protected readonly saleId = this.route.snapshot.paramMap.get('id')!;
   protected readonly sale = signal<SaleDetail | null>(null);
   protected readonly methods = signal<PaymentMethodItem[]>([]);
@@ -66,7 +68,7 @@ export class SalePaymentPage implements OnInit {
     });
   }
   protected save(): void {
-    if (this.form.invalid) return;
+    if (this.form.invalid || this.saving()) return;
     const value = this.form.getRawValue();
     if (this.sale() && value.amount > this.sale()!.dueAmount + .005) {
       this.errorMessage.set('Payment cannot exceed the outstanding due.'); return;
@@ -75,8 +77,8 @@ export class SalePaymentPage implements OnInit {
     this.api.recordPayment(this.saleId, {
       ...value, referenceNumber: value.referenceNumber || null, notes: value.notes || null
     }).subscribe({
-      next: () => this.router.navigate(['/sales-pos', this.saleId]),
-      error: error => { this.saving.set(false); this.errorMessage.set(this.describe(error)); }
+      next: () => { this.notifications.success('Payment recorded.'); this.router.navigate(['/sales-pos', this.saleId]); },
+      error: error => { this.saving.set(false); this.errorMessage.set(this.notifications.apiError(error, 'Payment could not be recorded.')); }
     });
   }
   private describe(error: unknown): string {

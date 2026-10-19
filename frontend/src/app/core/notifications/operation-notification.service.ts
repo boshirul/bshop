@@ -1,3 +1,4 @@
+import { HttpErrorResponse } from '@angular/common/http';
 import { Component, inject, Injectable } from '@angular/core';
 import { MatButtonModule } from '@angular/material/button';
 import { MAT_SNACK_BAR_DATA, MatSnackBar, MatSnackBarRef } from '@angular/material/snack-bar';
@@ -33,6 +34,8 @@ export class OperationNotificationComponent {
 @Injectable({ providedIn: 'root' })
 export class OperationNotificationService {
   private readonly snackBar = inject(MatSnackBar);
+  private activeKey: string | null = null;
+  private activeReference: MatSnackBarRef<OperationNotificationComponent> | null = null;
 
   success(message: string): void {
     this.open(message, 'success', 5_000, 'polite');
@@ -40,6 +43,12 @@ export class OperationNotificationService {
 
   error(message: string): void {
     this.open(message, 'error', 9_000, 'assertive');
+  }
+
+  apiError(error: unknown, fallback: string): string {
+    const message = operationErrorMessage(error, fallback);
+    this.error(message);
+    return message;
   }
 
   warning(message: string): void {
@@ -56,15 +65,48 @@ export class OperationNotificationService {
     duration: number | undefined,
     politeness: 'assertive' | 'polite'
   ): MatSnackBarRef<OperationNotificationComponent> {
-    this.snackBar.dismiss();
-    return this.snackBar.openFromComponent(OperationNotificationComponent, {
-      data: { message, tone },
+    const normalizedMessage = message.trim();
+    const key = `${tone}:${normalizedMessage}`;
+    if (this.activeKey === key && this.activeReference) {
+      return this.activeReference;
+    }
+
+    this.activeReference?.dismiss();
+    const reference = this.snackBar.openFromComponent(OperationNotificationComponent, {
+      data: { message: normalizedMessage, tone },
       duration,
       horizontalPosition: 'end',
       verticalPosition: 'bottom',
-      announcementMessage: message,
+      announcementMessage: normalizedMessage,
       politeness,
       panelClass: ['bshop-operation-notification-panel']
     });
+    this.activeKey = key;
+    this.activeReference = reference;
+    reference.afterDismissed().subscribe(() => {
+      if (this.activeReference === reference) {
+        this.activeKey = null;
+        this.activeReference = null;
+      }
+    });
+    return reference;
   }
+}
+
+/** Converts API failures to controlled user-facing text and retains a safe support reference. */
+export function operationErrorMessage(error: unknown, fallback: string): string {
+  if (!(error instanceof HttpErrorResponse)) {
+    return fallback;
+  }
+
+  const errors = error.error?.errors;
+  const controlled = Array.isArray(errors) && typeof errors[0] === 'string'
+    ? errors[0].trim()
+    : '';
+  const base = controlled || fallback;
+  const rawTrace = error.error?.traceId;
+  const traceId = typeof rawTrace === 'string' && /^[a-zA-Z0-9._:-]{1,100}$/.test(rawTrace)
+    ? rawTrace
+    : null;
+  return traceId ? `${base} Reference: ${traceId}` : base;
 }

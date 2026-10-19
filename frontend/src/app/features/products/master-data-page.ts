@@ -10,6 +10,7 @@ import { MatSelectModule } from '@angular/material/select';
 import { finalize, forkJoin } from 'rxjs';
 import { AuthService } from '../../core/auth/auth.service';
 import { permissions } from '../../core/auth/permissions';
+import { OperationNotificationService } from '../../core/notifications/operation-notification.service';
 import {
   MasterDataItem,
   MasterDataKind,
@@ -131,6 +132,7 @@ export class MasterDataPage implements OnInit {
   private readonly api = inject(ProductApiService);
   private readonly auth = inject(AuthService);
   private readonly formBuilder = inject(FormBuilder);
+  private readonly notifications = inject(OperationNotificationService);
 
   protected readonly items = signal<MasterDataItem[]>([]);
   protected readonly parents = signal<NamedMasterDataItem[]>([]);
@@ -236,10 +238,15 @@ export class MasterDataPage implements OnInit {
       .pipe(finalize(() => this.saving.set(false)))
       .subscribe({
         next: () => {
+          this.notifications.success(`${this.itemLabel()} saved.`);
           this.cancelEdit();
           this.load();
         },
-        error: (error) => this.errorMessage.set(this.describeError(error))
+        error: (error) => {
+          const message = this.describeError(error);
+          this.errorMessage.set(message);
+          this.notifications.error(message);
+        }
       });
   }
 
@@ -248,9 +255,15 @@ export class MasterDataPage implements OnInit {
       return;
     }
 
-    this.api.deleteMasterItem(this.kind(), item.id).subscribe({
-      next: () => this.load(),
-      error: (error) => this.errorMessage.set(this.describeError(error))
+    if (this.saving()) return;
+    this.saving.set(true);
+    this.api.deleteMasterItem(this.kind(), item.id).pipe(finalize(() => this.saving.set(false))).subscribe({
+      next: () => { this.notifications.success(`${this.itemLabel()} deleted.`); this.load(); },
+      error: (error) => {
+        const message = this.describeError(error);
+        this.errorMessage.set(message);
+        this.notifications.error(message);
+      }
     });
   }
 

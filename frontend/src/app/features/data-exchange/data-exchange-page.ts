@@ -8,6 +8,7 @@ import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatInputModule } from '@angular/material/input';
 import { MatSelectModule } from '@angular/material/select';
 import { MatTableModule } from '@angular/material/table';
+import { OperationNotificationService } from '../../core/notifications/operation-notification.service';
 import { DataExchangeApiService } from './data-exchange-api.service';
 import {
   CsvFileItem,
@@ -158,6 +159,7 @@ interface KindOption {
 })
 export class DataExchangePage implements OnInit {
   private readonly api = inject(DataExchangeApiService);
+  private readonly notifications = inject(OperationNotificationService);
 
   protected readonly kinds: readonly KindOption[] = [
     { label: 'Products', value: 'Products', help: 'Creates products using existing category, brand, model, and unit names. Product codes and barcodes stay system-generated.' },
@@ -206,12 +208,14 @@ export class DataExchangePage implements OnInit {
   }
 
   protected downloadTemplate(): void {
-    this.download(this.api.template(this.kind.value));
+    this.download(this.api.template(this.kind.value), () =>
+      this.notifications.success('CSV template downloaded.'));
   }
 
   protected exportCurrent(): void {
     this.download(this.api.export(this.kind.value), () => {
       this.message.set('Export downloaded and logged.');
+      this.notifications.success(this.message());
       this.refreshLogs();
     });
   }
@@ -231,11 +235,13 @@ export class DataExchangePage implements OnInit {
   }
 
   protected commit(): void {
+    if (this.busy()) return;
     this.busy.set(true);
     this.api.commit(this.kind.value, this.csvText(), this.fileName() || null).subscribe({
       next: result => {
         this.commitResult.set(result);
         this.message.set(`Batch ${result.batchNumber} committed. Imported ${result.importedRows} row(s).`);
+        this.notifications.success(this.message());
         this.error.set('');
         this.busy.set(false);
         this.preview();
@@ -247,7 +253,7 @@ export class DataExchangePage implements OnInit {
   protected refreshLogs(): void {
     this.api.exportLogs().subscribe({
       next: result => this.logs.set(result.items),
-      error: error => this.fail(error, 'Export logs could not be loaded.')
+      error: () => this.error.set('Export logs could not be loaded.')
     });
   }
 
@@ -290,10 +296,12 @@ export class DataExchangePage implements OnInit {
 
   private fail(error: unknown, fallback: string): void {
     this.busy.set(false);
-    this.error.set(error instanceof HttpErrorResponse && error.error?.errors?.[0]
+    const message = error instanceof HttpErrorResponse && error.error?.errors?.[0]
       ? error.error.errors[0]
       : error instanceof Error
         ? error.message
-        : fallback);
+        : fallback;
+    this.error.set(message);
+    this.notifications.apiError(error, message);
   }
 }

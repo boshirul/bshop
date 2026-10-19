@@ -1,5 +1,4 @@
 import { CurrencyPipe } from '@angular/common';
-import { HttpErrorResponse } from '@angular/common/http';
 import { Component, inject, OnInit, signal } from '@angular/core';
 import { FormArray, FormControl, FormGroup, ReactiveFormsModule, Validators } from '@angular/forms';
 import { MatButtonModule } from '@angular/material/button';
@@ -7,6 +6,7 @@ import { MatCardModule } from '@angular/material/card';
 import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatInputModule } from '@angular/material/input';
 import { ActivatedRoute, Router, RouterLink } from '@angular/router';
+import { OperationNotificationService } from '../../core/notifications/operation-notification.service';
 import { PurchaseApiService } from './purchase-api.service';
 import { PurchaseDetail } from './purchase.models';
 
@@ -69,6 +69,7 @@ export class PurchaseReturnPage implements OnInit {
   private readonly api = inject(PurchaseApiService);
   private readonly route = inject(ActivatedRoute);
   private readonly router = inject(Router);
+  private readonly notifications = inject(OperationNotificationService);
   protected readonly purchaseId = this.route.snapshot.paramMap.get('id')!;
   protected readonly purchase = signal<PurchaseDetail | null>(null);
   protected readonly saving = signal(false);
@@ -92,14 +93,14 @@ export class PurchaseReturnPage implements OnInit {
     });
   }
   protected save(): void {
-    if (this.form.invalid) return;
+    if (this.form.invalid || this.saving()) return;
     const value=this.form.getRawValue();
     const items=value.items.filter(item=>item.quantity>0);
     if(!items.length){this.errorMessage.set('Enter a return quantity for at least one product.');return;}
     this.saving.set(true);
     this.api.createReturn(this.purchaseId,{returnDate:value.returnDate,reason:value.reason,notes:value.notes||null,items}).subscribe({
-      next:()=>this.router.navigate(['/purchase',this.purchaseId]),
-      error:error=>{this.saving.set(false);this.errorMessage.set(error instanceof HttpErrorResponse&&error.error?.errors?.[0]?error.error.errors[0]:'The return could not be recorded.');}
+      next:()=>{this.notifications.success('Purchase return recorded.');this.router.navigate(['/purchase',this.purchaseId]);},
+      error:error=>{this.saving.set(false);this.errorMessage.set(this.notifications.apiError(error,'The return could not be recorded.'));}
     });
   }
 }

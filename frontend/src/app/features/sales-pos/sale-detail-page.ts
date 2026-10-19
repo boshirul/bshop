@@ -8,6 +8,7 @@ import { MatSelectModule } from '@angular/material/select';
 import { ActivatedRoute, RouterLink } from '@angular/router';
 import { AuthService } from '../../core/auth/auth.service';
 import { permissions } from '../../core/auth/permissions';
+import { OperationNotificationService } from '../../core/notifications/operation-notification.service';
 import { SalesApiService } from './sales-api.service';
 import { SettingsApiService } from '../settings/settings-api.service';
 import { SaleDetail } from './sales.models';
@@ -28,7 +29,7 @@ import { SaleDetail } from './sales.models';
             <a matButton="filled" [routerLink]="['/sales-pos',invoice.id,'payment']">Collect due</a>
           }
           @if(canCancel&&invoice.status!=='Cancelled'){
-            <button matButton type="button" (click)="cancel()">Cancel sale</button>
+            <button matButton type="button" [disabled]="cancelling()" (click)="cancel()">Cancel sale</button>
           }
           <mat-select class="invoice-format" [value]="printFormat()" (selectionChange)="printFormat.set($event.value)" aria-label="Invoice print format">
             @if(a4Enabled()){<mat-option value="A4">A4 invoice</mat-option>} @if(shortEnabled()){<mat-option value="Short">80 mm receipt</mat-option>}
@@ -124,6 +125,8 @@ export class SaleDetailPage implements OnInit {
   private readonly settingsApi = inject(SettingsApiService);
   private readonly auth = inject(AuthService);
   private readonly route = inject(ActivatedRoute);
+  private readonly notifications = inject(OperationNotificationService);
+  protected readonly cancelling = signal(false);
   protected readonly sale = signal<SaleDetail | null>(null);
   protected readonly errorMessage = signal('');
   protected readonly printFormat = signal<'A4' | 'Short'>('A4');
@@ -153,12 +156,13 @@ export class SaleDetailPage implements OnInit {
   }
   protected cancel(): void {
     const current = this.sale();
-    if (!current) return;
+    if (!current || this.cancelling()) return;
     const reason = window.prompt('Reason for cancelling this sale:')?.trim();
     if (!reason) return;
+    this.cancelling.set(true);
     this.api.cancelSale(current.id, reason).subscribe({
-      next: sale => { this.sale.set(sale); this.successMessage.set('Sale cancelled and stock restored.'); },
-      error: error => this.errorMessage.set(this.describe(error))
+      next: sale => { this.cancelling.set(false); this.sale.set(sale); this.successMessage.set('Sale cancelled and stock restored.'); this.notifications.success(this.successMessage()); },
+      error: error => { this.cancelling.set(false); this.errorMessage.set(this.notifications.apiError(error, 'Sale could not be cancelled.')); }
     });
   }
   private describe(error: unknown): string {

@@ -10,6 +10,7 @@ import { MatSelectModule } from '@angular/material/select';
 import { MatTableModule } from '@angular/material/table';
 import { AuthService } from '../../core/auth/auth.service';
 import { permissions } from '../../core/auth/permissions';
+import { OperationNotificationService } from '../../core/notifications/operation-notification.service';
 import { ProductApiService } from '../products/product-api.service';
 import { ProductListItem } from '../products/product.models';
 import { WarrantyApiService } from './warranty-api.service';
@@ -206,6 +207,8 @@ export class WarrantyPage implements OnInit {
   private readonly api = inject(WarrantyApiService);
   private readonly productApi = inject(ProductApiService);
   private readonly auth = inject(AuthService);
+  private readonly notifications = inject(OperationNotificationService);
+  protected readonly working = signal(false);
 
   protected readonly products = signal<ProductListItem[]>([]);
   protected readonly lookups = signal<WarrantyLookupItem[]>([]);
@@ -274,21 +277,25 @@ export class WarrantyPage implements OnInit {
   }
 
   protected registerSerials(): void {
-    if (this.registerForm.invalid) return;
+    if (this.registerForm.invalid || this.working()) return;
+    this.working.set(true);
     const value = this.registerForm.getRawValue();
     const serialNumbers = value.serialNumbers.split(/\r?\n|,/).map(item => item.trim()).filter(Boolean);
     this.api.registerSerials({ productId: value.productId, purchaseId: null, purchaseDetailId: null, serialNumbers }).subscribe({
       next: result => {
+        this.working.set(false);
         this.success.set(`Registered/found ${result.length} serial number(s).`);
+        this.notifications.success(this.success());
         this.error.set('');
         this.registerForm.controls.serialNumbers.setValue('');
       },
-      error: error => this.fail(error, 'Serial numbers could not be registered.')
+      error: error => { this.working.set(false); this.fail(error, 'Serial numbers could not be registered.', true); }
     });
   }
 
   protected createClaim(lookup: WarrantyLookupItem): void {
-    if (this.claimForm.invalid) return;
+    if (this.claimForm.invalid || this.working()) return;
+    this.working.set(true);
     const value = this.claimForm.getRawValue();
     this.api.createClaim({
       serialNumber: lookup.serial.serialNumber,
@@ -297,12 +304,14 @@ export class WarrantyPage implements OnInit {
       notes: value.notes || null
     }).subscribe({
       next: claim => {
+        this.working.set(false);
         this.selectedClaim.set(claim);
         this.success.set(`Created claim ${claim.claimNumber}.`);
+        this.notifications.success(this.success());
         this.lookupSerialValue(lookup.serial.serialNumber);
         this.loadClaims();
       },
-      error: error => this.fail(error, 'Warranty claim could not be created.')
+      error: error => { this.working.set(false); this.fail(error, 'Warranty claim could not be created.', true); }
     });
   }
 
@@ -321,30 +330,36 @@ export class WarrantyPage implements OnInit {
   }
 
   protected approveClaim(claim: WarrantyClaimDetailItem): void {
+    if (this.working()) return;
+    this.working.set(true);
     this.api.approve(claim.id, this.reviewNotes.value || null).subscribe({
-      next: result => { this.selectedClaim.set(result); this.success.set('Claim approved and moved to warranty stock.'); this.loadClaims(); },
-      error: error => this.fail(error, 'Warranty claim could not be approved.')
+      next: result => { this.working.set(false); this.selectedClaim.set(result); this.success.set('Claim approved and moved to warranty stock.'); this.notifications.success(this.success()); this.loadClaims(); },
+      error: error => { this.working.set(false); this.fail(error, 'Warranty claim could not be approved.', true); }
     });
   }
 
   protected rejectClaim(claim: WarrantyClaimDetailItem): void {
+    if (this.working()) return;
     const reason = this.reviewNotes.value.trim();
     if (!reason) { this.error.set('Enter a rejection reason in review notes.'); return; }
+    this.working.set(true);
     this.api.reject(claim.id, reason).subscribe({
-      next: result => { this.selectedClaim.set(result); this.success.set('Claim rejected.'); this.loadClaims(); },
-      error: error => this.fail(error, 'Warranty claim could not be rejected.')
+      next: result => { this.working.set(false); this.selectedClaim.set(result); this.success.set('Claim rejected.'); this.notifications.success(this.success()); this.loadClaims(); },
+      error: error => { this.working.set(false); this.fail(error, 'Warranty claim could not be rejected.', true); }
     });
   }
 
   protected resolveClaim(claim: WarrantyClaimDetailItem): void {
+    if (this.working()) return;
+    this.working.set(true);
     const value = this.resolveForm.getRawValue();
     this.api.resolve(claim.id, {
       action: value.action,
       replacementSerialNumber: value.replacementSerialNumber || null,
       notes: value.notes || null
     }).subscribe({
-      next: result => { this.selectedClaim.set(result); this.success.set(`Claim resolved as ${result.status}.`); this.loadClaims(); },
-      error: error => this.fail(error, 'Warranty claim could not be resolved.')
+      next: result => { this.working.set(false); this.selectedClaim.set(result); this.success.set(`Claim resolved as ${result.status}.`); this.notifications.success(this.success()); this.loadClaims(); },
+      error: error => { this.working.set(false); this.fail(error, 'Warranty claim could not be resolved.', true); }
     });
   }
 
@@ -352,10 +367,11 @@ export class WarrantyPage implements OnInit {
     this.api.lookupSerial(serial).subscribe(result => this.lookups.set([result]));
   }
 
-  private fail(error: unknown, fallback: string): void {
+  private fail(error: unknown, fallback: string, notify = false): void {
     this.success.set('');
     this.error.set(error instanceof HttpErrorResponse && error.error?.errors?.[0]
       ? error.error.errors[0]
       : fallback);
+    if (notify) this.notifications.apiError(error, this.error());
   }
 }

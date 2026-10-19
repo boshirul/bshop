@@ -7,6 +7,7 @@ import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatInputModule } from '@angular/material/input';
 import { MatSelectModule } from '@angular/material/select';
 import { RouterLink } from '@angular/router';
+import { OperationNotificationService } from '../../core/notifications/operation-notification.service';
 import { ProductApiService } from '../products/product-api.service';
 import { ProductListItem } from '../products/product.models';
 import { InventoryApiService } from './inventory-api.service';
@@ -123,6 +124,7 @@ type OpeningLineForm = FormGroup<{
 export class OpeningStockPage implements OnInit {
   private readonly inventoryApi = inject(InventoryApiService);
   private readonly productApi = inject(ProductApiService);
+  private readonly notifications = inject(OperationNotificationService);
 
   protected readonly products = signal<ProductListItem[]>([]);
   protected readonly saving = signal(false);
@@ -153,7 +155,7 @@ export class OpeningStockPage implements OnInit {
   }
 
   protected save(): void {
-    if (this.form.invalid) return;
+    if (this.form.invalid || this.saving()) return;
     this.saving.set(true);
     this.errorMessage.set('');
     this.successMessage.set('');
@@ -165,13 +167,14 @@ export class OpeningStockPage implements OnInit {
           this.successMessage.set(
             `Opening stock recorded for ${result.productCount} product(s).`
           );
+          this.notifications.success(this.successMessage());
           this.saving.set(false);
           this.form.reset({ remarks: '', items: [] });
           this.items.clear();
           this.addLine();
         },
         error: (error) => {
-          this.errorMessage.set(this.describe(error));
+          this.errorMessage.set(this.notifications.apiError(error, 'Opening stock could not be recorded.'));
           this.saving.set(false);
         }
       });

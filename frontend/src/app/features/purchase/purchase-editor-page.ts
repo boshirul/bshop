@@ -254,7 +254,7 @@ export class PurchaseEditorPage implements OnInit {
         referenceNumber: value.payment.referenceNumber || null, notes: null
       }] : []
     }).subscribe({
-      next: purchase => { progress.dismiss(); this.router.navigate(['/purchase', purchase.id], { state: { created: true } }); },
+      next: purchase => { progress.dismiss(); this.notifications.success('Purchase saved and stock posted.'); this.router.navigate(['/purchase', purchase.id], { state: { created: true } }); },
       error: error => { progress.dismiss(); this.saving.set(false); const message = this.describe(error); this.errorMessage.set(message); this.notifications.error(message); }
     });
   }

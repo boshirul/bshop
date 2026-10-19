@@ -9,6 +9,7 @@ import { MatInputModule } from '@angular/material/input';
 import { MatSelectModule } from '@angular/material/select';
 import { MatTableModule } from '@angular/material/table';
 import { forkJoin } from 'rxjs';
+import { OperationNotificationService } from '../../core/notifications/operation-notification.service';
 import { UserManagementApiService } from './user-management-api.service';
 import { PermissionSummary, RoleSummary, UserSummary } from './user-management.models';
 
@@ -124,6 +125,8 @@ import { PermissionSummary, RoleSummary, UserSummary } from './user-management.m
 })
 export class UserManagementPage implements OnInit {
   private readonly api = inject(UserManagementApiService);
+  private readonly notifications = inject(OperationNotificationService);
+  protected readonly saving = signal(false);
 
   protected readonly users = signal<UserSummary[]>([]);
   protected readonly roles = signal<RoleSummary[]>([]);
@@ -175,6 +178,8 @@ export class UserManagementPage implements OnInit {
   protected cancelUser(): void { this.editingUser.set(false); this.editingUserId.set(null); }
 
   protected saveUser(): void {
+    if (this.saving()) return;
+    this.saving.set(true);
     const id = this.editingUserId();
     const request = {
       fullName: this.fullName.value,
@@ -185,11 +190,13 @@ export class UserManagementPage implements OnInit {
     const action = id
       ? this.api.updateUser(id, request)
       : this.api.createUser({ ...request, email: this.email.value, password: this.password.value });
-    action.subscribe({ next: () => { this.message.set('User saved.'); this.cancelUser(); this.load(); }, error: error => this.fail(error, 'User could not be saved.') });
+    action.subscribe({ next: () => { this.saving.set(false); this.message.set('User saved.'); this.notifications.success(this.message()); this.cancelUser(); this.load(); }, error: error => { this.saving.set(false); this.fail(error, 'User could not be saved.', true); } });
   }
 
   protected deactivate(user: UserSummary): void {
-    this.api.deactivateUser(user.id).subscribe({ next: () => { this.message.set('User deactivated.'); this.load(); }, error: error => this.fail(error, 'User could not be deactivated.') });
+    if (this.saving()) return;
+    this.saving.set(true);
+    this.api.deactivateUser(user.id).subscribe({ next: () => { this.saving.set(false); this.message.set('User deactivated.'); this.notifications.success(this.message()); this.load(); }, error: error => { this.saving.set(false); this.fail(error, 'User could not be deactivated.', true); } });
   }
 
   protected beginCreateRole(): void {
@@ -203,16 +210,18 @@ export class UserManagementPage implements OnInit {
   protected cancelRole(): void { this.editingRole.set(false); this.editingRoleId.set(null); }
 
   protected saveRole(): void {
+    if (this.saving()) return;
+    this.saving.set(true);
     const id = this.editingRoleId();
     const action = id ? this.api.updateRole(id, this.roleName.value) : this.api.createRole(this.roleName.value);
     action.subscribe({
       next: role => {
         this.api.updateRolePermissions(role.id, this.rolePermissions()).subscribe({
-          next: () => { this.message.set('Role saved.'); this.cancelRole(); this.load(); },
-          error: error => this.fail(error, 'Role permissions could not be saved.')
+          next: () => { this.saving.set(false); this.message.set('Role saved.'); this.notifications.success(this.message()); this.cancelRole(); this.load(); },
+          error: error => { this.saving.set(false); this.fail(error, 'Role permissions could not be saved.', true); }
         });
       },
-      error: error => this.fail(error, 'Role could not be saved.')
+      error: error => { this.saving.set(false); this.fail(error, 'Role could not be saved.', true); }
     });
   }
 
@@ -222,7 +231,9 @@ export class UserManagementPage implements OnInit {
     this.rolePermissions.set([...current].sort());
   }
 
-  private fail(error: unknown, fallback: string): void {
-    this.error.set(error instanceof HttpErrorResponse && error.error?.errors?.[0] ? error.error.errors[0] : fallback);
+  private fail(error: unknown, fallback: string, notify = false): void {
+    const message = error instanceof HttpErrorResponse && error.error?.errors?.[0] ? error.error.errors[0] : fallback;
+    this.error.set(message);
+    if (notify) this.notifications.apiError(error, message);
   }
 }

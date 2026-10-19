@@ -10,6 +10,7 @@ import { MatSelectModule } from '@angular/material/select';
 import { RouterLink } from '@angular/router';
 import { AuthService } from '../../core/auth/auth.service';
 import { permissions } from '../../core/auth/permissions';
+import { OperationNotificationService } from '../../core/notifications/operation-notification.service';
 import { ProductApiService } from '../products/product-api.service';
 import { ProductListItem } from '../products/product.models';
 import { InventoryApiService } from './inventory-api.service';
@@ -94,7 +95,7 @@ import {
               <mat-label>Notes</mat-label>
               <textarea matInput rows="2" formControlName="notes"></textarea>
             </mat-form-field>
-            <button matButton="filled" class="transaction-primary" type="submit" [disabled]="form.invalid">Submit request</button>
+            <button matButton="filled" class="transaction-primary" type="submit" [disabled]="form.invalid || working()">Submit request</button>
           </form>
         </mat-card-content>
       </mat-card>
@@ -144,11 +145,11 @@ import {
             @if (canApprove()) {
               <div class="form-actions">
                 @if (adjustment.status === 'Pending') {
-                  <button matButton="filled" class="transaction-primary" type="button" (click)="approve(adjustment)">Approve</button>
-                  <button matButton type="button" (click)="reject(adjustment)">Reject</button>
+                  <button matButton="filled" class="transaction-primary" type="button" [disabled]="working()" (click)="approve(adjustment)">Approve</button>
+                  <button matButton type="button" [disabled]="working()" (click)="reject(adjustment)">Reject</button>
                 }
                 @if (adjustment.status === 'Approved') {
-                  <button matButton type="button" (click)="reverse(adjustment)">Reverse</button>
+                  <button matButton type="button" [disabled]="working()" (click)="reverse(adjustment)">Reverse</button>
                 }
               </div>
             }
@@ -192,6 +193,8 @@ export class StockAdjustmentsPage implements OnInit {
   private readonly api = inject(InventoryApiService);
   private readonly productApi = inject(ProductApiService);
   private readonly auth = inject(AuthService);
+  private readonly notifications = inject(OperationNotificationService);
+  protected readonly working = signal(false);
 
   protected readonly buckets: StockBucket[] =
     ['Available', 'Damaged', 'Warranty', 'SupplierClaim'];
@@ -241,7 +244,8 @@ export class StockAdjustmentsPage implements OnInit {
   }
 
   protected create(): void {
-    if (this.form.invalid) return;
+    if (this.form.invalid || this.working()) return;
+    this.working.set(true);
     const value = this.form.getRawValue();
     this.api.createAdjustment({
       reason: value.reason,
@@ -255,6 +259,7 @@ export class StockAdjustmentsPage implements OnInit {
       }]
     }).subscribe({
       next: () => {
+        this.working.set(false);
         this.showSuccess('Adjustment request submitted.');
         this.form.reset({
           reason: '',
@@ -267,7 +272,7 @@ export class StockAdjustmentsPage implements OnInit {
         });
         this.load(1);
       },
-      error: (error) => this.showError(error)
+      error: (error) => { this.working.set(false); this.showError(error); }
     });
   }
 
@@ -283,47 +288,55 @@ export class StockAdjustmentsPage implements OnInit {
           this.page.set(result.page);
           this.totalPages.set(result.totalPages);
         },
-        error: (error) => this.showError(error)
+        error: () => this.errorMessage.set('Adjustment requests could not be loaded.')
       });
   }
 
   protected approve(adjustment: StockAdjustmentDetail): void {
+    if (this.working()) return;
     const notes = globalThis.prompt?.('Approval notes (optional):') ?? null;
+    this.working.set(true);
     this.api.approveAdjustment(adjustment.id, notes).subscribe({
-      next: () => { this.showSuccess('Adjustment approved and posted.'); this.load(this.page()); },
-      error: (error) => this.showError(error)
+      next: () => { this.working.set(false); this.showSuccess('Adjustment approved and posted.'); this.load(this.page()); },
+      error: (error) => { this.working.set(false); this.showError(error); }
     });
   }
 
   protected reject(adjustment: StockAdjustmentDetail): void {
+    if (this.working()) return;
     const reason = globalThis.prompt?.('Reason for rejection:');
     if (!reason?.trim()) return;
+    this.working.set(true);
     this.api.rejectAdjustment(adjustment.id, reason).subscribe({
-      next: () => { this.showSuccess('Adjustment rejected.'); this.load(this.page()); },
-      error: (error) => this.showError(error)
+      next: () => { this.working.set(false); this.showSuccess('Adjustment rejected.'); this.load(this.page()); },
+      error: (error) => { this.working.set(false); this.showError(error); }
     });
   }
 
   protected reverse(adjustment: StockAdjustmentDetail): void {
+    if (this.working()) return;
     const reason = globalThis.prompt?.('Reason for reversal:');
     if (!reason?.trim()) return;
+    this.working.set(true);
     this.api.reverseAdjustment(adjustment.id, reason).subscribe({
-      next: () => { this.showSuccess('Adjustment reversed through the ledger.'); this.load(this.page()); },
-      error: (error) => this.showError(error)
+      next: () => { this.working.set(false); this.showSuccess('Adjustment reversed through the ledger.'); this.load(this.page()); },
+      error: (error) => { this.working.set(false); this.showError(error); }
     });
   }
 
   private showSuccess(message: string): void {
     this.errorMessage.set('');
     this.successMessage.set(message);
+    this.notifications.success(message);
   }
 
   private showError(error: unknown): void {
     this.successMessage.set('');
     if (error instanceof HttpErrorResponse && Array.isArray(error.error?.errors)) {
-      this.errorMessage.set(error.error.errors[0] ?? 'The request could not be completed.');
+      this.errorMessage.set(this.notifications.apiError(error, 'The request could not be completed.'));
       return;
     }
     this.errorMessage.set('The request could not be completed.');
+    this.notifications.error(this.errorMessage());
   }
 }

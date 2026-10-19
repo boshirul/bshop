@@ -11,6 +11,7 @@ import { MatTableModule } from '@angular/material/table';
 import { ActivatedRoute, RouterLink } from '@angular/router';
 import { AuthService } from '../../core/auth/auth.service';
 import { permissions } from '../../core/auth/permissions';
+import { OperationNotificationService } from '../../core/notifications/operation-notification.service';
 import { ContactApiService } from '../contacts/contact-api.service';
 import { CustomerItem } from '../contacts/contact.models';
 import { CustomerAccountsApiService } from './customer-accounts-api.service';
@@ -56,6 +57,7 @@ import { CustomerStatement } from './customer-accounts.models';
 export class StatementPage implements OnInit {
   private readonly api = inject(CustomerAccountsApiService); private readonly contactsApi = inject(ContactApiService);
   private readonly route = inject(ActivatedRoute); private readonly auth = inject(AuthService);
+  private readonly notifications = inject(OperationNotificationService);
   protected readonly customers = signal<CustomerItem[]>([]); protected readonly statement = signal<CustomerStatement | null>(null);
   protected readonly errorMessage = signal(''); protected readonly saving = signal(false);
   protected readonly customerId = new FormControl('', { nonNullable: true });
@@ -75,9 +77,9 @@ export class StatementPage implements OnInit {
   protected load(): void { if(!this.customerId.value)return; this.api.getStatement(this.customerId.value,this.from.value,this.to.value).subscribe({
     next: result => {this.statement.set(result);this.errorMessage.set('');}, error:()=>this.errorMessage.set('Statement could not be loaded.')
   }); }
-  protected adjust(): void { if(this.adjustmentForm.invalid||!this.customerId.value)return;this.saving.set(true);this.api.createAdjustment({customerId:this.customerId.value,...this.adjustmentForm.getRawValue()}).subscribe({
-    next: result=>{this.statement.set(result);this.adjustmentForm.controls.amount.setValue(0);this.adjustmentForm.controls.reason.setValue('');this.saving.set(false);},
-    error:error=>{this.saving.set(false);this.errorMessage.set(this.describe(error));}
+  protected adjust(): void { if(this.adjustmentForm.invalid||!this.customerId.value||this.saving())return;this.saving.set(true);this.api.createAdjustment({customerId:this.customerId.value,...this.adjustmentForm.getRawValue()}).subscribe({
+    next: result=>{this.statement.set(result);this.adjustmentForm.controls.amount.setValue(0);this.adjustmentForm.controls.reason.setValue('');this.saving.set(false);this.notifications.success('Customer account adjustment posted.');},
+    error:error=>{this.saving.set(false);this.errorMessage.set(this.notifications.apiError(error,'Adjustment could not be posted.'));}
   }); }
   protected canAdjust(): boolean { return this.auth.hasPermission(permissions.customerAccounts.adjustLedger); }
   protected canPrint(): boolean { return this.auth.hasPermission(permissions.customerAccounts.printStatement); }

@@ -8,6 +8,7 @@ import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatInputModule } from '@angular/material/input';
 import { MatSelectModule } from '@angular/material/select';
 import { ActivatedRoute, Router, RouterLink } from '@angular/router';
+import { OperationNotificationService } from '../../core/notifications/operation-notification.service';
 import { ContactApiService } from '../contacts/contact-api.service';
 import { CustomerItem } from '../contacts/contact.models';
 import { SettingsApiService } from '../settings/settings-api.service';
@@ -57,6 +58,7 @@ export class ReceiptEditorPage implements OnInit {
   private readonly settingsApi = inject(SettingsApiService);
   private readonly route = inject(ActivatedRoute);
   private readonly router = inject(Router);
+  private readonly notifications = inject(OperationNotificationService);
   protected readonly customers = signal<CustomerItem[]>([]);
   protected readonly methods = signal<PaymentMethodItem[]>([]);
   protected readonly saving = signal(false); protected readonly errorMessage = signal('');
@@ -80,11 +82,11 @@ export class ReceiptEditorPage implements OnInit {
     this.settingsApi.getPaymentMethods().subscribe({ next: methods => this.methods.set(methods.filter(x => x.isActive)) });
   }
   protected save(): void {
-    if (this.form.invalid) return;
+    if (this.form.invalid || this.saving()) return;
     const value = this.form.getRawValue(); this.saving.set(true);
     this.api.createReceipt({ ...value, referenceNumber: value.referenceNumber || null, notes: value.notes || null }).subscribe({
-      next: receipt => this.router.navigate(['/customer-accounts/receipts', receipt.id]),
-      error: error => { this.saving.set(false); this.errorMessage.set(this.describe(error)); }
+      next: receipt => { this.notifications.success('Customer receipt posted.'); this.router.navigate(['/customer-accounts/receipts', receipt.id]); },
+      error: error => { this.saving.set(false); this.errorMessage.set(this.notifications.apiError(error, 'Receipt could not be posted.')); }
     });
   }
   private describe(error: unknown): string {

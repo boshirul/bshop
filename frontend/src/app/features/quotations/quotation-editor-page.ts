@@ -148,7 +148,7 @@ export class QuotationEditorPage implements OnInit {
     const value = this.form.getRawValue();
     const request = { ...value, notes: value.notes || null, terms: value.terms || null };
     const action = this.quotationId ? this.api.updateQuotation(this.quotationId, request) : this.api.createQuotation(request);
-    action.subscribe({ next: quotation => { progress.dismiss(); this.router.navigate(['/quotations', quotation.id]); },
+    action.subscribe({ next: quotation => { progress.dismiss(); this.notifications.success(this.quotationId ? 'Quotation updated.' : 'Quotation created.'); this.router.navigate(['/quotations', quotation.id]); },
       error: error => { progress.dismiss(); this.saving.set(false); const message = this.describe(error); this.errorMessage.set(message); this.notifications.error(message); } });
   }
   private createLine(): LineForm {

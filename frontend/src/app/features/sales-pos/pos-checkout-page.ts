@@ -457,7 +457,7 @@ export class PosCheckoutPage implements OnInit {
         ...payment, referenceNumber: payment.referenceNumber || null, notes: null
       }))
     }).subscribe({
-      next: sale => { progress.dismiss(); this.router.navigate(['/sales-pos', sale.id], { state: { created: true } }); },
+      next: sale => { progress.dismiss(); this.notifications.success('Sale completed and stock posted.'); this.router.navigate(['/sales-pos', sale.id], { state: { created: true } }); },
       error: error => { progress.dismiss(); this.saving.set(false); const message = this.describe(error); this.errorMessage.set(message); this.notifications.error(message); }
     });
   }

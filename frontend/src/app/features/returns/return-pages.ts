@@ -10,6 +10,7 @@ import { MatTableModule } from '@angular/material/table';
 import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 import { AuthService } from '../../core/auth/auth.service';
 import { permissions } from '../../core/auth/permissions';
+import { OperationNotificationService } from '../../core/notifications/operation-notification.service';
 import { SettingsApiService } from '../settings/settings-api.service';
 import { PaymentMethodItem } from '../settings/settings.models';
 import { ReturnsApiService } from './returns-api.service';
@@ -88,6 +89,7 @@ export class ReturnListPage implements OnInit {
 })
 export class ReturnCreatePage implements OnInit {
   private readonly api=inject(ReturnsApiService); private readonly router=inject(Router);
+  private readonly notifications=inject(OperationNotificationService);
   protected readonly invoiceNumber=new FormControl('',{nonNullable:true});
   protected readonly invoice=signal<ReturnInvoice|null>(null); protected readonly reasons=signal<ComplaintReason[]>([]);
   protected readonly quantities=signal<Record<string,number>>({}); protected readonly error=signal(''); protected readonly saving=signal(false);
@@ -106,11 +108,11 @@ export class ReturnCreatePage implements OnInit {
   });}
   protected quantity(id:string):number{return this.quantities()[id]??0;}
   protected setQuantity(id:string,event:Event):void{const value=Number((event.target as HTMLInputElement).value);this.quantities.update(x=>({...x,[id]:value}));}
-  protected submit():void{const sale=this.invoice();if(!sale)return;const items=sale.lines.map(x=>({saleDetailId:x.saleDetailId,quantity:this.quantity(x.saleDetailId)})).filter(x=>x.quantity>0);
+  protected submit():void{const sale=this.invoice();if(!sale||this.saving())return;const items=sale.lines.map(x=>({saleDetailId:x.saleDetailId,quantity:this.quantity(x.saleDetailId)})).filter(x=>x.quantity>0);
     if(!items.length){this.error.set('Enter a return quantity for at least one product.');return;}
     if(items.some(x=>x.quantity>(sale.lines.find(y=>y.saleDetailId===x.saleDetailId)?.returnableQuantity??0))){this.error.set('A quantity exceeds the remaining sold quantity.');return;}
     this.saving.set(true);this.api.create({invoiceNumber:sale.invoiceNumber,...this.form.getRawValue(),items}).subscribe({
-      next:x=>this.router.navigate(['/returns',x.id]),error:e=>{this.error.set(e?.error?.errors?.[0]??'Return request could not be submitted.');this.saving.set(false);}
+      next:x=>{this.notifications.success('Return request submitted.');this.router.navigate(['/returns',x.id]);},error:e=>{this.error.set(this.notifications.apiError(e,'Return request could not be submitted.'));this.saving.set(false);}
     });}
 }
 
@@ -147,12 +149,13 @@ export class ReturnCreatePage implements OnInit {
 export class ReturnDetailPage implements OnInit {
   private readonly api=inject(ReturnsApiService);private readonly route=inject(ActivatedRoute);
   private readonly settings=inject(SettingsApiService);private readonly auth=inject(AuthService);
+  private readonly notifications=inject(OperationNotificationService);protected readonly working=signal(false);
   protected readonly item=signal<SalesReturnDetail|null>(null);protected readonly methods=signal<PaymentMethodItem[]>([]);
   protected readonly error=signal('');protected readonly paymentMethodId=new FormControl('',{nonNullable:true});
   protected readonly reviewNotes=new FormControl('',{nonNullable:true});protected readonly columns=['product','quantity','amount'];
   protected readonly canApprove=this.auth.hasPermission(permissions.returns.approve);
   ngOnInit():void{this.load();this.settings.getPaymentMethods().subscribe(x=>this.methods.set(x.filter(y=>y.isActive)));}
   protected load():void{this.api.detail(this.route.snapshot.paramMap.get('id')!).subscribe({next:x=>this.item.set(x),error:()=>this.error.set('Return could not be loaded.')});}
-  protected approve():void{const value=this.item();if(!value)return;this.api.approve(value.id,{paymentMethodId:this.paymentMethodId.value||null,notes:this.reviewNotes.value||null}).subscribe({next:x=>{this.item.set(x);this.error.set('');},error:e=>this.error.set(e?.error?.errors?.[0]??'Return could not be approved.')});}
-  protected reject():void{const value=this.item();if(!value)return;const notes=this.reviewNotes.value.trim();if(notes.length<3){this.error.set('Enter a rejection reason.');return;}this.api.reject(value.id,notes).subscribe({next:x=>{this.item.set(x);this.error.set('');},error:e=>this.error.set(e?.error?.errors?.[0]??'Return could not be rejected.')});}
+  protected approve():void{const value=this.item();if(!value||this.working())return;this.working.set(true);this.api.approve(value.id,{paymentMethodId:this.paymentMethodId.value||null,notes:this.reviewNotes.value||null}).subscribe({next:x=>{this.item.set(x);this.error.set('');this.working.set(false);this.notifications.success('Return approved and applied.');},error:e=>{this.working.set(false);this.error.set(this.notifications.apiError(e,'Return could not be approved.'));}});}
+  protected reject():void{const value=this.item();if(!value||this.working())return;const notes=this.reviewNotes.value.trim();if(notes.length<3){this.error.set('Enter a rejection reason.');return;}this.working.set(true);this.api.reject(value.id,notes).subscribe({next:x=>{this.item.set(x);this.error.set('');this.working.set(false);this.notifications.success('Return rejected.');},error:e=>{this.working.set(false);this.error.set(this.notifications.apiError(e,'Return could not be rejected.'));}});}
 }

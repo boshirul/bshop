@@ -11,6 +11,7 @@ import { MatTableModule } from '@angular/material/table';
 import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 import { AuthService } from '../../core/auth/auth.service';
 import { permissions } from '../../core/auth/permissions';
+import { OperationNotificationService } from '../../core/notifications/operation-notification.service';
 import { SettingsApiService } from '../settings/settings-api.service';
 import { PaymentMethodItem } from '../settings/settings.models';
 import { QuotationApiService } from './quotation-api.service';
@@ -96,6 +97,7 @@ export class QuotationDetailPage implements OnInit {
   private readonly route = inject(ActivatedRoute);
   private readonly router = inject(Router);
   private readonly auth = inject(AuthService);
+  private readonly notifications = inject(OperationNotificationService);
   private readonly id = this.route.snapshot.paramMap.get('id') ?? '';
   protected readonly quotation = signal<QuotationDetail | null>(null);
   protected readonly paymentMethods = signal<PaymentMethodItem[]>([]);
@@ -123,7 +125,7 @@ export class QuotationDetailPage implements OnInit {
   protected accept(): void { this.run(this.api.accept(this.id), 'Quotation accepted.'); }
   protected reject(): void { this.run(this.api.reject(this.id,this.rejectionReason.value.trim()), 'Quotation rejected.'); }
   protected convert(): void {
-    if(this.conversion.invalid)return;
+    if(this.conversion.invalid||this.working())return;
     const value=this.conversion.getRawValue();
     const payments=value.payments.filter(item=>item.amount>0);
     if(payments.some(item=>!item.paymentMethodId)){this.errorMessage.set('Choose a method for every payment amount.');return;}
@@ -132,14 +134,15 @@ export class QuotationDetailPage implements OnInit {
     this.working.set(true);this.errorMessage.set('');
     this.api.convert(this.id,{saleDate:value.saleDate,notes:value.notes||null,payments:payments.map(item=>({
       paymentMethodId:item.paymentMethodId,amount:item.amount,referenceNumber:item.referenceNumber||null,notes:null
-    }))}).subscribe({next:sale=>this.router.navigate(['/sales-pos',sale.id],{state:{created:true}}),
-      error:error=>{this.working.set(false);this.errorMessage.set(this.describe(error));}});
+    }))}).subscribe({next:sale=>{this.notifications.success('Quotation converted to sale.');this.router.navigate(['/sales-pos',sale.id],{state:{created:true}});},
+      error:error=>{this.working.set(false);this.errorMessage.set(this.notifications.apiError(error,'The quotation could not be converted.'));}});
   }
   private load():void { this.api.getQuotation(this.id).subscribe({next:item=>this.quotation.set(item),error:error=>this.errorMessage.set(this.describe(error))}); }
   private run(action:ReturnType<QuotationApiService['send']>,message:string):void {
+    if(this.working())return;
     this.working.set(true);this.errorMessage.set('');
-    action.subscribe({next:item=>{this.quotation.set(item);this.working.set(false);this.successMessage.set(message);},
-      error:error=>{this.working.set(false);this.errorMessage.set(this.describe(error));}});
+    action.subscribe({next:item=>{this.quotation.set(item);this.working.set(false);this.successMessage.set(message);this.notifications.success(message);},
+      error:error=>{this.working.set(false);this.errorMessage.set(this.notifications.apiError(error,'The quotation action could not be completed.'));}});
   }
   private createPayment():PaymentForm { return new FormGroup({paymentMethodId:new FormControl('',{nonNullable:true}),
     amount:new FormControl(0,{nonNullable:true,validators:[Validators.min(0)]}),referenceNumber:new FormControl('',{nonNullable:true})}); }

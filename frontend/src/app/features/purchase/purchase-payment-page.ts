@@ -1,5 +1,4 @@
 import { CurrencyPipe } from '@angular/common';
-import { HttpErrorResponse } from '@angular/common/http';
 import { Component, inject, OnInit, signal } from '@angular/core';
 import { FormControl, FormGroup, ReactiveFormsModule, Validators } from '@angular/forms';
 import { MatButtonModule } from '@angular/material/button';
@@ -8,6 +7,7 @@ import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatInputModule } from '@angular/material/input';
 import { MatSelectModule } from '@angular/material/select';
 import { ActivatedRoute, Router, RouterLink } from '@angular/router';
+import { OperationNotificationService } from '../../core/notifications/operation-notification.service';
 import { SettingsApiService } from '../settings/settings-api.service';
 import { PaymentMethodItem } from '../settings/settings.models';
 import { PurchaseApiService } from './purchase-api.service';
@@ -46,6 +46,7 @@ export class PurchasePaymentPage implements OnInit {
   private readonly settings = inject(SettingsApiService);
   private readonly route = inject(ActivatedRoute);
   private readonly router = inject(Router);
+  private readonly notifications = inject(OperationNotificationService);
   protected readonly purchaseId = this.route.snapshot.paramMap.get('id')!;
   protected readonly purchase = signal<PurchaseDetail | null>(null);
   protected readonly methods = signal<PaymentMethodItem[]>([]);
@@ -63,11 +64,11 @@ export class PurchasePaymentPage implements OnInit {
     this.settings.getPaymentMethods().subscribe({ next: methods => this.methods.set(methods.filter(x => x.isActive)) });
   }
   protected save(): void {
-    if (this.form.invalid) return;
+    if (this.form.invalid || this.saving()) return;
     const value = this.form.getRawValue(); this.saving.set(true);
     this.api.recordPayment(this.purchaseId, {...value, referenceNumber:value.referenceNumber||null, notes:value.notes||null}).subscribe({
-      next: () => this.router.navigate(['/purchase', this.purchaseId]),
-      error: error => { this.saving.set(false); this.errorMessage.set(error instanceof HttpErrorResponse && error.error?.errors?.[0] ? error.error.errors[0] : 'Payment could not be recorded.'); }
+      next: () => { this.notifications.success('Supplier payment recorded.'); this.router.navigate(['/purchase', this.purchaseId]); },
+      error: error => { this.saving.set(false); this.errorMessage.set(this.notifications.apiError(error, 'Payment could not be recorded.')); }
     });
   }
 }

@@ -6,6 +6,7 @@ import { MatButtonModule } from '@angular/material/button';
 import { MatCardModule } from '@angular/material/card';
 import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatSelectModule } from '@angular/material/select';
+import { OperationNotificationService } from '../../core/notifications/operation-notification.service';
 import { NotificationsApiService } from './notifications-api.service';
 import {
   BackgroundJobRunItem,
@@ -125,6 +126,7 @@ import {
 })
 export class NotificationsPage implements OnInit {
   private readonly api = inject(NotificationsApiService);
+  private readonly notifications = inject(OperationNotificationService);
 
   protected readonly kinds: NotificationKind[] = [
     'LowStock',
@@ -175,14 +177,16 @@ export class NotificationsPage implements OnInit {
   }
 
   protected run(path: string): void {
+    if (this.busy()) return;
     this.busy.set(true);
     this.api.generate(path).subscribe({
       next: result => {
         this.message.set(`${result.jobName} completed. Created ${result.createdCount} new message(s).`);
+        this.notifications.success(this.message());
         this.busy.set(false);
         this.refresh();
       },
-      error: error => this.fail(error, 'Job could not be completed.')
+      error: error => this.fail(error, 'Job could not be completed.', true)
     });
   }
 
@@ -191,9 +195,10 @@ export class NotificationsPage implements OnInit {
       this.api.markCopied(item.id).subscribe({
         next: () => {
           this.message.set('Message copied.');
+          this.notifications.success(this.message());
           this.loadMessages();
         },
-        error: error => this.fail(error, 'Message was copied, but status could not be updated.')
+        error: error => this.fail(error, 'Message was copied, but status could not be updated.', true)
       });
     }).catch(() => this.error.set('Clipboard permission was denied by the browser.'));
   }
@@ -202,18 +207,20 @@ export class NotificationsPage implements OnInit {
     this.api.dismiss(item.id).subscribe({
       next: () => {
         this.message.set('Message dismissed.');
+        this.notifications.success(this.message());
         this.loadMessages();
       },
-      error: error => this.fail(error, 'Message could not be dismissed.')
+      error: error => this.fail(error, 'Message could not be dismissed.', true)
     });
   }
 
-  private fail(error: unknown, fallback: string): void {
+  private fail(error: unknown, fallback: string, notify = false): void {
     this.busy.set(false);
     this.error.set(error instanceof HttpErrorResponse && error.error?.errors?.[0]
       ? error.error.errors[0]
       : error instanceof Error
         ? error.message
         : fallback);
+    if (notify) this.notifications.apiError(error, this.error());
   }
 }

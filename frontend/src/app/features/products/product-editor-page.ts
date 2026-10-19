@@ -394,13 +394,13 @@ export class ProductEditorPage implements OnInit {
   protected replaceMedia(media: ProductMediaItem, event: Event): void {
     const file = (event.target as HTMLInputElement).files?.[0];
     (event.target as HTMLInputElement).value = '';
-    if (!file || !this.productId) return;
+    if (!file || !this.productId || this.uploadProgress() !== null) return;
     this.uploadProgress.set(0);
     this.api.replaceMedia(this.productId, media.id, file).subscribe({
       next: eventValue => {
         if (eventValue.type === HttpEventType.UploadProgress && eventValue.total) this.uploadProgress.set(Math.round(eventValue.loaded / eventValue.total * 100));
-        if (eventValue.type === HttpEventType.Response) { this.uploadProgress.set(null); this.loadMedia(this.productId!); }
-      }, error: error => { this.uploadProgress.set(null); this.errorMessage.set(this.describeError(error)); }
+        if (eventValue.type === HttpEventType.Response) { this.uploadProgress.set(null); this.notifications.success('Product media replaced.'); this.loadMedia(this.productId!); }
+      }, error: error => { this.uploadProgress.set(null); const message=this.describeError(error);this.errorMessage.set(message);this.notifications.error(message); }
     });
   }
 
@@ -413,20 +413,20 @@ export class ProductEditorPage implements OnInit {
         if (event.type === HttpEventType.UploadProgress && event.total) {
           this.uploadProgress.set(Math.round(event.loaded * 100 / event.total));
         }
-        if (event.type === HttpEventType.Response) { this.uploadProgress.set(null); this.loadMedia(this.productId!); }
+        if (event.type === HttpEventType.Response) { this.uploadProgress.set(null); this.notifications.success('Video poster replaced.'); this.loadMedia(this.productId!); }
       },
-      error: error => { this.errorMessage.set(this.describeError(error)); this.uploadProgress.set(null); }
+      error: error => { const message=this.describeError(error);this.errorMessage.set(message);this.notifications.error(message);this.uploadProgress.set(null); }
     });
   }
 
   protected removeMedia(media: ProductMediaItem): void {
     if (!this.productId || !globalThis.confirm?.('Delete this media file?')) return;
-    this.api.deleteMedia(this.productId, media.id).subscribe({ next: () => this.loadMedia(this.productId!), error: error => this.errorMessage.set(this.describeError(error)) });
+    this.api.deleteMedia(this.productId, media.id).subscribe({ next: () => {this.notifications.success('Product media deleted.');this.loadMedia(this.productId!);}, error: error => {const message=this.describeError(error);this.errorMessage.set(message);this.notifications.error(message);} });
   }
 
   protected makePrimary(media: ProductMediaItem): void {
     if (!this.productId) return;
-    this.api.setPrimaryMedia(this.productId, media.id).subscribe({ next: () => this.loadMedia(this.productId!), error: error => this.errorMessage.set(this.describeError(error)) });
+    this.api.setPrimaryMedia(this.productId, media.id).subscribe({ next: () => {this.notifications.success('Primary product media updated.');this.loadMedia(this.productId!);}, error: error => {const message=this.describeError(error);this.errorMessage.set(message);this.notifications.error(message);} });
   }
 
   protected moveMedia(index: number, direction: number): void {
@@ -435,7 +435,7 @@ export class ProductEditorPage implements OnInit {
     const target = index + direction;
     if (target < 0 || target >= reordered.length) return;
     [reordered[index], reordered[target]] = [reordered[target], reordered[index]];
-    this.api.reorderMedia(this.productId, reordered.map(item => item.id)).subscribe({ next: () => this.loadMedia(this.productId!), error: error => this.errorMessage.set(this.describeError(error)) });
+    this.api.reorderMedia(this.productId, reordered.map(item => item.id)).subscribe({ next: () => {this.notifications.success('Product media order updated.');this.loadMedia(this.productId!);}, error: error => {const message=this.describeError(error);this.errorMessage.set(message);this.notifications.error(message);} });
   }
 
   protected formatFileSize(bytes: number): string { return bytes >= 1024 * 1024 ? `${(bytes / 1024 / 1024).toFixed(1)} MB` : `${Math.max(1, Math.round(bytes / 1024))} KB`; }
@@ -446,10 +446,10 @@ export class ProductEditorPage implements OnInit {
     let completed = 0;
     this.uploadProgress.set(0);
     const uploadNext = (index: number): void => {
-      if (index >= files.length) { this.uploadProgress.set(null); this.loadMedia(productId); return; }
+      if (index >= files.length) { this.uploadProgress.set(null); this.notifications.success(`${files.length} media file(s) uploaded.`); this.loadMedia(productId); return; }
       this.api.uploadMedia(productId, files[index]).subscribe({
         next: eventValue => { if (eventValue.type === HttpEventType.UploadProgress && eventValue.total) this.uploadProgress.set(Math.round((completed + eventValue.loaded / eventValue.total) / files.length * 100)); if (eventValue.type === HttpEventType.Response) { completed++; uploadNext(index + 1); } },
-        error: error => { this.uploadProgress.set(null); this.errorMessage.set(this.describeError(error)); }
+        error: error => { this.uploadProgress.set(null); const message=this.describeError(error);this.errorMessage.set(message);this.notifications.error(message); }
       });
     };
     uploadNext(0);
