@@ -2,6 +2,7 @@ using System.Data;
 using Microsoft.EntityFrameworkCore;
 using RetailShop.Application.Auditing;
 using RetailShop.Application.Common;
+using RetailShop.Application.Finance;
 using RetailShop.Application.Purchases;
 using RetailShop.Domain.Inventory;
 using RetailShop.Domain.Products;
@@ -12,7 +13,8 @@ namespace RetailShop.Infrastructure.Purchases;
 
 internal sealed class PurchaseService(
     RetailShopDbContext dbContext,
-    IAuditService auditService) : IPurchaseService
+    IAuditService auditService,
+    IAutomaticAccountingService? accountingService = null) : IPurchaseService
 {
     public async Task<PagedResult<PurchaseListItem>> GetPurchasesAsync(
         string? search,
@@ -175,6 +177,12 @@ internal sealed class PurchaseService(
             AddPaymentLedger(purchase, payment, performedBy);
         }
 
+        var accountingError = await PostAccounting(() => accountingService?.PostPurchaseAsync(
+            new AutomaticPurchasePosting(purchase.Id, purchase.PurchaseDate, purchase.GrandTotal,
+                purchase.Payments.Select(x => new AccountingPayment(x.PaymentMethodId, x.Amount)).ToArray()),
+            performedBy, cancellationToken));
+        if (accountingError is not null) return OperationResult<PurchaseDetailItem>.Failure(accountingError);
+
         var saveResult = await SaveTransactionAsync(transaction, cancellationToken);
         if (saveResult is not null)
         {
@@ -237,6 +245,11 @@ internal sealed class PurchaseService(
         purchase.AddPayment(payment);
         dbContext.PurchasePayments.Add(payment);
         AddPaymentLedger(purchase, payment, performedBy);
+
+        var accountingError = await PostAccounting(() => accountingService?.PostPaymentAsync(
+            new AutomaticPaymentPosting("PurchasePayment", payment.Id, payment.PaidOn,
+                payment.PaymentMethodId, payment.Amount, false, true), performedBy, cancellationToken));
+        if (accountingError is not null) return OperationResult<PurchaseDetailItem>.Failure(accountingError);
 
         var saveResult = await SaveTransactionAsync(transaction, cancellationToken);
         if (saveResult is not null)
@@ -346,6 +359,11 @@ internal sealed class PurchaseService(
             purchaseReturn.ReturnNumber,
             performedBy,
             request.Reason));
+
+        var accountingError = await PostAccounting(() => accountingService?.PostPurchaseReturnAsync(
+            new AutomaticPurchaseReturnPosting(purchaseReturn.Id, purchaseReturn.ReturnDate,
+                purchaseReturn.TotalAmount), performedBy, cancellationToken));
+        if (accountingError is not null) return OperationResult<PurchaseDetailItem>.Failure(accountingError);
 
         var saveResult = await SaveTransactionAsync(transaction, cancellationToken);
         if (saveResult is not null)
@@ -618,6 +636,20 @@ internal sealed class PurchaseService(
             }
 
             throw;
+        }
+    }
+
+    private static async Task<string?> PostAccounting(Func<Task<OperationResult<bool>>?> action)
+    {
+        if (action() is not { } task) return null;
+        try
+        {
+            var result = await task;
+            return result.Succeeded ? null : $"Finance posting failed: {string.Join("; ", result.Errors)}";
+        }
+        catch (InvalidOperationException exception)
+        {
+            return $"Finance posting failed: {exception.Message}";
         }
     }
 

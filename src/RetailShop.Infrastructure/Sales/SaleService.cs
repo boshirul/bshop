@@ -3,7 +3,9 @@ using System.Text.Json;
 using Microsoft.EntityFrameworkCore;
 using RetailShop.Application.Auditing;
 using RetailShop.Application.Common;
+using RetailShop.Application.Finance;
 using RetailShop.Application.Sales;
+using RetailShop.Domain.Finance;
 using RetailShop.Domain.Inventory;
 using RetailShop.Domain.Products;
 using RetailShop.Domain.Sales;
@@ -14,7 +16,8 @@ namespace RetailShop.Infrastructure.Sales;
 
 internal sealed class SaleService(
     RetailShopDbContext dbContext,
-    IAuditService auditService) : ISaleService
+    IAuditService auditService,
+    IAutomaticAccountingService? accountingService = null) : ISaleService
 {
     public async Task<PagedResult<SaleListItem>> GetSalesAsync(
         string? search,
@@ -318,6 +321,13 @@ internal sealed class SaleService(
         });
         dbContext.SaleInvoiceSnapshots.Add(new SaleInvoiceSnapshot(sale.Id, template?.Version ?? 1, snapshot) { CreatedBy = performedBy });
 
+        var accountingError = await PostAccounting(() => accountingService?.PostSaleAsync(
+            new AutomaticSalePosting(sale.Id, sale.SaleDate, sale.GrandTotal, sale.VatAmount,
+                sale.Details.Sum(x => x.CostTotal), sale.Payments.Select(x =>
+                    new AccountingPayment(x.PaymentMethodId, x.Amount)).ToArray()),
+            performedBy, cancellationToken), cancellationToken);
+        if (accountingError is not null) return OperationResult<SaleDetailItem>.Failure(accountingError);
+
         var saveError = await SaveTransactionAsync(transaction, cancellationToken);
         if (saveError is not null)
         {
@@ -389,6 +399,11 @@ internal sealed class SaleService(
             AddPaymentLedger(sale, payment, performedBy);
         }
 
+        var accountingError = await PostAccounting(() => accountingService?.PostPaymentAsync(
+            new AutomaticPaymentPosting("SalePayment", payment.Id, payment.PaidOn,
+                payment.PaymentMethodId, payment.Amount, false), performedBy, cancellationToken), cancellationToken);
+        if (accountingError is not null) return OperationResult<SaleDetailItem>.Failure(accountingError);
+
         var saveError = await SaveTransactionAsync(transaction, cancellationToken);
         if (saveError is not null)
         {
@@ -429,6 +444,15 @@ internal sealed class SaleService(
         {
             return OperationResult<SaleDetailItem>.Failure(
                 "A delivered online-order sale cannot be cancelled. Use the sales return workflow instead.");
+        }
+
+        var financeActivation = await dbContext.FinanceActivations.AsNoTracking().FirstOrDefaultAsync(cancellationToken);
+        if (financeActivation is { AutomaticPostingEnabled: true, CutoverDate: not null }
+            && DateOnly.FromDateTime(sale.SaleDate.UtcDateTime) >= financeActivation.CutoverDate
+            && await dbContext.CustomerReceiptAllocations.AnyAsync(x => x.SaleId == sale.Id, cancellationToken))
+        {
+            return OperationResult<SaleDetailItem>.Failure(
+                "This sale has a customer-receipt allocation. Use the sales return/refund workflow so the receipt remains auditable.");
         }
 
         try
@@ -484,6 +508,27 @@ internal sealed class SaleService(
                     performedBy,
                     request.Reason);
             }
+        }
+
+        var accountingError = await PostAccounting(() => accountingService?.ReverseAsync(
+            "Sale", sale.Id, sale.CancelledOn!.Value, request.Reason, performedBy, cancellationToken,
+            sale.SaleDate), cancellationToken);
+        if (accountingError is not null) return OperationResult<SaleDetailItem>.Failure(accountingError);
+
+        var separatelyPostedPayments = await (
+            from payment in dbContext.SalePayments
+            join journal in dbContext.JournalEntries on payment.Id equals journal.SourceId
+            where payment.SaleId == sale.Id
+                  && journal.SourceType == "SalePayment"
+                  && journal.PostingKind != FinancePostingKinds.Reversal
+            select new { payment.Id, payment.PaidOn })
+            .ToArrayAsync(cancellationToken);
+        foreach (var payment in separatelyPostedPayments)
+        {
+            accountingError = await PostAccounting(() => accountingService?.ReverseAsync(
+                "SalePayment", payment.Id, sale.CancelledOn!.Value, request.Reason, performedBy,
+                cancellationToken, payment.PaidOn), cancellationToken);
+            if (accountingError is not null) return OperationResult<SaleDetailItem>.Failure(accountingError);
         }
 
         var saveError = await SaveTransactionAsync(transaction, cancellationToken);
@@ -805,6 +850,21 @@ internal sealed class SaleService(
         catch (DbUpdateException)
         {
             return "The sale could not be saved because a conflicting record exists.";
+        }
+    }
+
+    private static async Task<string?> PostAccounting(
+        Func<Task<OperationResult<bool>>?> action, CancellationToken cancellationToken)
+    {
+        if (action() is not { } task) return null;
+        try
+        {
+            var result = await task.WaitAsync(cancellationToken);
+            return result.Succeeded ? null : $"Finance posting failed: {string.Join("; ", result.Errors)}";
+        }
+        catch (InvalidOperationException exception)
+        {
+            return $"Finance posting failed: {exception.Message}";
         }
     }
 

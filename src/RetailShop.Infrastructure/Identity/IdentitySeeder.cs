@@ -74,7 +74,8 @@ internal sealed class IdentitySeeder(
                 [
                     Permissions.Products.Delete,
                     Permissions.Administration.ManageUsers,
-                    Permissions.Administration.ManageRoles
+                    Permissions.Administration.ManageRoles,
+                    .. Permissions.Finance.Sensitive
                 ])
                 .ToArray(),
             [DefaultRoles.Salesperson] =

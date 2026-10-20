@@ -3,6 +3,7 @@ using Microsoft.EntityFrameworkCore;
 using RetailShop.Application.Auditing;
 using RetailShop.Application.Common;
 using RetailShop.Application.Returns;
+using RetailShop.Application.Finance;
 using RetailShop.Domain.Inventory;
 using RetailShop.Domain.Returns;
 using RetailShop.Domain.Sales;
@@ -12,7 +13,8 @@ namespace RetailShop.Infrastructure.Returns;
 
 internal sealed class ReturnService(
     RetailShopDbContext dbContext,
-    IAuditService auditService) : IReturnService
+    IAuditService auditService,
+    IAutomaticAccountingService? accountingService = null) : IReturnService
 {
     public async Task<IReadOnlyCollection<ComplaintReasonItem>>
         GetComplaintReasonsAsync(CancellationToken cancellationToken) =>
@@ -346,6 +348,29 @@ internal sealed class ReturnService(
                 AddLedger(item, CustomerLedgerEntryType.Refund, refunded, 0,
                     performedBy, "Refund paid to customer.");
             }
+        }
+
+        if (accountingService is not null)
+        {
+            var returnedVat = item.Details.Sum(x => x.SaleDetail.Quantity == 0 ? 0 :
+                decimal.Round(x.SaleDetail.VatAmount * x.Quantity / x.SaleDetail.Quantity, 2,
+                    MidpointRounding.AwayFromZero));
+            var inventoryCost = item.Details.Sum(x => x.Quantity * x.SaleDetail.CostPrice);
+            OperationResult<bool> finance;
+            try
+            {
+                finance = await accountingService.PostSalesReturnAsync(
+                    new AutomaticSalesReturnPosting(item.Id, item.ReviewedOn!.Value, item.TotalAmount,
+                        returnedVat, item.RefundedAmount, item.DueAdjustedAmount, item.PaymentMethodId,
+                        inventoryCost, item.RequestedAction == SalesReturnAction.Replacement),
+                    performedBy, cancellationToken);
+            }
+            catch (InvalidOperationException exception)
+            {
+                return OperationResult<SalesReturnDetailItem>.Failure($"Finance posting failed: {exception.Message}");
+            }
+            if (!finance.Succeeded)
+                return OperationResult<SalesReturnDetailItem>.Failure($"Finance posting failed: {string.Join("; ", finance.Errors)}");
         }
 
         await dbContext.SaveChangesAsync(cancellationToken);

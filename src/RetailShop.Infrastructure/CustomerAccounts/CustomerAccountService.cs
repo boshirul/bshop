@@ -3,6 +3,7 @@ using Microsoft.EntityFrameworkCore;
 using RetailShop.Application.Auditing;
 using RetailShop.Application.Common;
 using RetailShop.Application.CustomerAccounts;
+using RetailShop.Application.Finance;
 using RetailShop.Domain.CustomerAccounts;
 using RetailShop.Domain.Sales;
 using RetailShop.Infrastructure.Persistence;
@@ -11,7 +12,8 @@ namespace RetailShop.Infrastructure.CustomerAccounts;
 
 internal sealed class CustomerAccountService(
     RetailShopDbContext dbContext,
-    IAuditService auditService) : ICustomerAccountService
+    IAuditService auditService,
+    IAutomaticAccountingService? accountingService = null) : ICustomerAccountService
 {
     public async Task<PagedResult<CustomerDueSummaryItem>> GetDuesAsync(
         string? search,
@@ -349,6 +351,24 @@ internal sealed class CustomerAccountService(
             receipt.ReceiptNumber,
             performedBy,
             receipt.Notes));
+
+        if (accountingService is not null)
+        {
+            OperationResult<bool> accounting;
+            try
+            {
+                accounting = await accountingService.PostPaymentAsync(
+                    new AutomaticPaymentPosting("CustomerReceipt", receipt.Id, receipt.ReceivedOn,
+                        receipt.PaymentMethodId, receipt.Amount, true), performedBy, cancellationToken);
+            }
+            catch (InvalidOperationException exception)
+            {
+                return OperationResult<CustomerReceiptDetailItem>.Failure($"Finance posting failed: {exception.Message}");
+            }
+            if (!accounting.Succeeded)
+                return OperationResult<CustomerReceiptDetailItem>.Failure(
+                    $"Finance posting failed: {string.Join("; ", accounting.Errors)}");
+        }
 
         var error = await SaveTransactionAsync(transaction, cancellationToken);
         if (error is not null)

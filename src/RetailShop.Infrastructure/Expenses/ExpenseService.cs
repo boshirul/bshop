@@ -2,12 +2,14 @@ using Microsoft.EntityFrameworkCore;
 using RetailShop.Application.Auditing;
 using RetailShop.Application.Common;
 using RetailShop.Application.Expenses;
+using RetailShop.Application.Finance;
 using RetailShop.Domain.Expenses;
 using RetailShop.Infrastructure.Persistence;
 
 namespace RetailShop.Infrastructure.Expenses;
 
-internal sealed class ExpenseService(RetailShopDbContext db, IAuditService audit) : IExpenseService
+internal sealed class ExpenseService(RetailShopDbContext db, IAuditService audit,
+    IAutomaticAccountingService? accounting = null) : IExpenseService
 {
     public async Task<IReadOnlyCollection<ExpenseCategoryItem>> GetCategoriesAsync(CancellationToken ct) => await db.ExpenseCategories.AsNoTracking().OrderBy(x => x.Name).Select(x => new ExpenseCategoryItem(x.Id, x.Code, x.Name, x.IsActive)).ToArrayAsync(ct);
     public async Task<OperationResult<ExpenseCategoryItem>> SaveCategoryAsync(Guid? id, SaveExpenseCategoryRequest req, Guid userId, CancellationToken ct)
@@ -29,7 +31,30 @@ internal sealed class ExpenseService(RetailShopDbContext db, IAuditService audit
     public async Task<OperationResult<ExpenseVoucherItem>> UpdateAsync(Guid id,SaveExpenseVoucherRequest req,Guid userId,CancellationToken ct) { var valid=await Validate(req,ct); if(valid is not null)return OperationResult<ExpenseVoucherItem>.Failure(valid); var x=await db.ExpenseVouchers.Include(x=>x.Details).SingleOrDefaultAsync(x=>x.Id==id,ct); if(x is null)return OperationResult<ExpenseVoucherItem>.Failure("Expense voucher not found."); try{x.Update(req.ExpenseDate,req.Payee,req.PaymentMethodId,req.GeneralRemarks); x.ReplaceDetails(req.Lines.Select(x=>new ExpenseVoucherDetail(x.CategoryId,x.Description,x.Amount,x.Reference))); x.LastModifiedBy=userId;x.LastModifiedOn=DateTimeOffset.UtcNow;await db.SaveChangesAsync(ct);await audit.WriteAsync("Update","ExpenseVoucher",id.ToString(),x.VoucherNumber,userId,ct);return await GetVoucherAsync(id,ct);}catch(Exception e){return OperationResult<ExpenseVoucherItem>.Failure(e.Message);} }
     public async Task<OperationResult<ExpenseVoucherItem>> PostAsync(Guid id,Guid userId,CancellationToken ct)=>await ChangeStatus(id,userId,null,true,ct);
     public async Task<OperationResult<ExpenseVoucherItem>> VoidAsync(Guid id,string reason,Guid userId,CancellationToken ct)=>await ChangeStatus(id,userId,reason,false,ct);
-    private async Task<OperationResult<ExpenseVoucherItem>> ChangeStatus(Guid id,Guid userId,string? reason,bool post,CancellationToken ct){var x=await db.ExpenseVouchers.SingleOrDefaultAsync(x=>x.Id==id,ct);if(x is null)return OperationResult<ExpenseVoucherItem>.Failure("Expense voucher not found.");try{if(post)x.Post(userId);else x.Void(userId,reason??string.Empty);await db.SaveChangesAsync(ct);await audit.WriteAsync(post?"Post":"Void","ExpenseVoucher",id.ToString(),x.VoucherNumber,userId,ct);return await GetVoucherAsync(id,ct);}catch(Exception e){return OperationResult<ExpenseVoucherItem>.Failure(e.Message);}}
+    private async Task<OperationResult<ExpenseVoucherItem>> ChangeStatus(Guid id,Guid userId,string? reason,bool post,CancellationToken ct)
+    {
+        await using var transaction=await db.Database.BeginTransactionAsync(ct);
+        var x=await db.ExpenseVouchers.Include(x=>x.Details).SingleOrDefaultAsync(x=>x.Id==id,ct);
+        if(x is null)return OperationResult<ExpenseVoucherItem>.Failure("Expense voucher not found.");
+        try
+        {
+            if(post)x.Post(userId);else x.Void(userId,reason??string.Empty);
+            if(accounting is not null)
+            {
+                var finance = post
+                    ? await accounting.PostExpenseAsync(new AutomaticExpensePosting(x.Id,x.ExpenseDate,x.PaymentMethodId,
+                        x.Details.Select(d=>new AccountingExpenseLine(d.ExpenseCategoryId,d.Amount)).ToArray()),userId,ct)
+                    : await accounting.ReverseAsync("ExpenseVoucher",x.Id,DateTimeOffset.UtcNow,reason??string.Empty,userId,ct,
+                        new DateTimeOffset(x.ExpenseDate.ToDateTime(TimeOnly.MinValue),TimeSpan.FromHours(6)));
+                if(!finance.Succeeded)return OperationResult<ExpenseVoucherItem>.Failure($"Finance posting failed: {string.Join("; ",finance.Errors)}");
+            }
+            await db.SaveChangesAsync(ct);
+            await transaction.CommitAsync(ct);
+            await audit.WriteAsync(post?"Post":"Void","ExpenseVoucher",id.ToString(),x.VoucherNumber,userId,ct);
+            return await GetVoucherAsync(id,ct);
+        }
+        catch(Exception e){return OperationResult<ExpenseVoucherItem>.Failure(e.Message);}
+    }
     private async Task<string?> Validate(SaveExpenseVoucherRequest r,CancellationToken ct){if(string.IsNullOrWhiteSpace(r.Payee)||r.Lines.Count==0||r.Lines.Any(x=>x.Amount<=0||string.IsNullOrWhiteSpace(x.Description)))return "A payee and one or more positive expense lines are required.";var ids=r.Lines.Select(x=>x.CategoryId).Distinct().ToArray();if(await db.ExpenseCategories.CountAsync(x=>ids.Contains(x.Id)&&x.IsActive,ct)!=ids.Length)return "Select active expense categories.";return null;}
     private static ExpenseVoucherItem Map(ExpenseVoucher x)=>new(x.Id,x.VoucherNumber,x.ExpenseDate,x.Payee,x.PaymentMethodId,x.PaymentMethod?.Name,x.GeneralRemarks,x.Status.ToString(),x.TotalAmount,x.Details.Select(d=>new ExpenseVoucherLineItem(d.Id,d.ExpenseCategoryId,d.Category.Name,d.Description,d.Amount,d.Reference)).ToArray());
 }

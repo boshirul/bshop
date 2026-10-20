@@ -3,6 +3,7 @@ using Microsoft.EntityFrameworkCore;
 using RetailShop.Application.Auditing;
 using RetailShop.Application.Common;
 using RetailShop.Application.Inventory;
+using RetailShop.Application.Finance;
 using RetailShop.Domain.Inventory;
 using RetailShop.Domain.Products;
 using RetailShop.Infrastructure.Persistence;
@@ -11,7 +12,8 @@ namespace RetailShop.Infrastructure.Inventory;
 
 internal sealed class InventoryService(
     RetailShopDbContext dbContext,
-    IAuditService auditService) : IInventoryService
+    IAuditService auditService,
+    IAutomaticAccountingService? accountingService = null) : IInventoryService
 {
     public async Task<OperationResult<OpeningStockResult>> RecordOpeningStockAsync(
         OpeningStockRequest request,
@@ -371,6 +373,26 @@ internal sealed class InventoryService(
         }
 
         adjustment.Approve(performedBy, request.Notes);
+        if (accountingService is not null)
+        {
+            var increase = adjustment.Details.Where(x => x.Direction == StockAdjustmentDirection.Increase)
+                .Sum(x => x.Quantity * x.AppliedCost);
+            var decrease = adjustment.Details.Where(x => x.Direction == StockAdjustmentDirection.Decrease)
+                .Sum(x => x.Quantity * x.AppliedCost);
+            OperationResult<bool> finance;
+            try
+            {
+                finance = await accountingService.PostInventoryAdjustmentAsync(
+                    new AutomaticInventoryAdjustmentPosting(adjustment.Id, adjustment.ReviewedOn!.Value,
+                        increase, decrease), performedBy, cancellationToken);
+            }
+            catch (InvalidOperationException exception)
+            {
+                return OperationResult<StockAdjustmentDetailItem>.Failure($"Finance posting failed: {exception.Message}");
+            }
+            if (!finance.Succeeded)
+                return OperationResult<StockAdjustmentDetailItem>.Failure($"Finance posting failed: {string.Join("; ", finance.Errors)}");
+        }
         try
         {
             await dbContext.SaveChangesAsync(cancellationToken);
@@ -467,6 +489,15 @@ internal sealed class InventoryService(
             {
                 return OperationResult<StockAdjustmentDetailItem>.Failure(result);
             }
+        }
+
+        if (accountingService is not null)
+        {
+            var finance = await accountingService.ReverseAsync("StockAdjustment", adjustment.Id,
+                adjustment.ReversedOn!.Value, request.Reason, performedBy, cancellationToken,
+                adjustment.ReviewedOn);
+            if (!finance.Succeeded)
+                return OperationResult<StockAdjustmentDetailItem>.Failure($"Finance posting failed: {string.Join("; ", finance.Errors)}");
         }
 
         try

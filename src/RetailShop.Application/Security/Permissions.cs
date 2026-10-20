@@ -122,6 +122,26 @@ public static class Permissions
         public const string ViewAuditLog = "administration.view-audit-log";
     }
 
+    public static class Finance
+    {
+        public const string View = "finance.view";
+        public const string ManageAccounts = "finance.accounts.manage";
+        public const string CreateManualJournal = "finance.journals.create-manual";
+        public const string PostJournal = "finance.journals.post";
+        public const string ReverseJournal = "finance.journals.reverse";
+        public const string ManageReconciliation = "finance.reconciliation.manage";
+        public const string ManageTransfers = "finance.transfers.manage";
+        public const string ViewReports = "finance.reports.view";
+        public const string ClosePeriods = "finance.periods.close";
+        public const string ReopenPeriods = "finance.periods.reopen";
+
+        public static IReadOnlyCollection<string> Sensitive { get; } =
+        [
+            ManageAccounts, CreateManualJournal, PostJournal, ReverseJournal,
+            ManageReconciliation, ManageTransfers, ClosePeriods, ReopenPeriods
+        ];
+    }
+
     public static IReadOnlyCollection<PermissionDefinition> All { get; } =
     [
         new(Dashboard.View, "View dashboard", "Dashboard"),
@@ -175,7 +195,17 @@ public static class Permissions
         new(Notifications.Manage, "Generate and update notifications", "Notifications"),
         new(Administration.ManageUsers, "Manage users", "Administration"),
         new(Administration.ManageRoles, "Manage roles and permissions", "Administration"),
-        new(Administration.ViewAuditLog, "View audit logs", "Administration")
+        new(Administration.ViewAuditLog, "View audit logs", "Administration"),
+        new(Finance.View, "View finance", "Finance"),
+        new(Finance.ManageAccounts, "Manage chart of accounts", "Finance"),
+        new(Finance.CreateManualJournal, "Create manual journals", "Finance"),
+        new(Finance.PostJournal, "Post journals", "Finance"),
+        new(Finance.ReverseJournal, "Reverse journals", "Finance"),
+        new(Finance.ManageReconciliation, "Manage financial reconciliations", "Finance"),
+        new(Finance.ManageTransfers, "Manage fund transfers", "Finance"),
+        new(Finance.ViewReports, "View financial reports", "Finance"),
+        new(Finance.ClosePeriods, "Close fiscal periods", "Finance"),
+        new(Finance.ReopenPeriods, "Reopen fiscal periods", "Finance")
     ];
 }
 

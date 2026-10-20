@@ -18,6 +18,7 @@ using RetailShop.Domain.OnlineOrders;
 using RetailShop.Domain.DataExchange;
 using RetailShop.Domain.Notifications;
 using RetailShop.Domain.Expenses;
+using RetailShop.Domain.Finance;
 
 namespace RetailShop.Infrastructure.Persistence;
 
@@ -145,6 +146,14 @@ public sealed class RetailShopDbContext(DbContextOptions<RetailShopDbContext> op
         Set<NotificationMessage>();
 
     public DbSet<BackgroundJobRun> BackgroundJobRuns => Set<BackgroundJobRun>();
+
+    public DbSet<Account> Accounts => Set<Account>();
+    public DbSet<FiscalPeriod> FiscalPeriods => Set<FiscalPeriod>();
+    public DbSet<JournalEntry> JournalEntries => Set<JournalEntry>();
+    public DbSet<JournalLine> JournalLines => Set<JournalLine>();
+    public DbSet<AccountMapping> AccountMappings => Set<AccountMapping>();
+    public DbSet<FinancialAccount> FinancialAccounts => Set<FinancialAccount>();
+    public DbSet<FinanceActivation> FinanceActivations => Set<FinanceActivation>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -1304,6 +1313,8 @@ public sealed class RetailShopDbContext(DbContextOptions<RetailShopDbContext> op
             entity.HasIndex(item => new { item.JobName, item.StartedOn });
             entity.HasQueryFilter(item => !item.IsDeleted);
         });
+
+        ConfigureFinance(modelBuilder);
     }
 
     public override int SaveChanges(bool acceptAllChangesOnSuccess)
@@ -1322,6 +1333,7 @@ public sealed class RetailShopDbContext(DbContextOptions<RetailShopDbContext> op
 
     private void ApplyAuditInformation()
     {
+        PreventPostedJournalMutation();
         var now = DateTimeOffset.UtcNow;
 
         foreach (var entry in ChangeTracker.Entries<AuditableEntity>())
@@ -1344,5 +1356,105 @@ public sealed class RetailShopDbContext(DbContextOptions<RetailShopDbContext> op
                 entry.Entity.LastModifiedOn = now;
             }
         }
+    }
+
+    private static void ConfigureFinance(ModelBuilder modelBuilder)
+    {
+        modelBuilder.Entity<Account>(entity =>
+        {
+            entity.ToTable("FinanceAccounts", table =>
+                table.HasCheckConstraint("CK_FinanceAccounts_Parent", "\"ParentId\" IS NULL OR \"ParentId\" <> \"Id\""));
+            entity.Property(x => x.Code).HasMaxLength(30).IsRequired();
+            entity.Property(x => x.Name).HasMaxLength(200).IsRequired();
+            entity.Property(x => x.Type).HasConversion<string>().HasMaxLength(20);
+            entity.Property(x => x.NormalBalance).HasConversion<string>().HasMaxLength(10);
+            entity.Property(x => x.Kind).HasConversion<string>().HasMaxLength(10);
+            entity.HasIndex(x => x.Code).IsUnique();
+            entity.HasOne(x => x.Parent).WithMany(x => x.Children).HasForeignKey(x => x.ParentId)
+                .OnDelete(DeleteBehavior.Restrict);
+        });
+
+        modelBuilder.Entity<FiscalPeriod>(entity =>
+        {
+            entity.ToTable("FiscalPeriods", table =>
+                table.HasCheckConstraint("CK_FiscalPeriods_DateRange", "\"EndDate\" >= \"StartDate\""));
+            entity.Property(x => x.Name).HasMaxLength(100).IsRequired();
+            entity.Property(x => x.Status).HasConversion<string>().HasMaxLength(20);
+            entity.HasIndex(x => new { x.StartDate, x.EndDate });
+        });
+
+        modelBuilder.Entity<JournalEntry>(entity =>
+        {
+            entity.ToTable("JournalEntries");
+            entity.Property(x => x.Number).HasMaxLength(40).IsRequired();
+            entity.Property(x => x.SourceType).HasMaxLength(80).IsRequired();
+            entity.Property(x => x.PostingKind).HasMaxLength(80).IsRequired();
+            entity.Property(x => x.PayloadHash).HasMaxLength(64).IsRequired();
+            entity.Property(x => x.Description).HasMaxLength(500);
+            entity.Property(x => x.Status).HasConversion<string>().HasMaxLength(20);
+            entity.HasIndex(x => x.Number).IsUnique();
+            entity.HasIndex(x => new { x.SourceType, x.SourceId, x.PostingKind }).IsUnique();
+            entity.HasIndex(x => x.ReversesJournalId).IsUnique().HasFilter("\"ReversesJournalId\" IS NOT NULL");
+            entity.HasOne(x => x.FiscalPeriod).WithMany().HasForeignKey(x => x.FiscalPeriodId)
+                .OnDelete(DeleteBehavior.Restrict);
+            entity.HasOne(x => x.ReversesJournal).WithOne(x => x.ReversalJournal)
+                .HasForeignKey<JournalEntry>(x => x.ReversesJournalId).OnDelete(DeleteBehavior.Restrict);
+        });
+
+        modelBuilder.Entity<JournalLine>(entity =>
+        {
+            entity.ToTable("JournalLines", table =>
+            {
+                table.HasCheckConstraint("CK_JournalLines_DebitCredit",
+                    "(\"Debit\" > 0 AND \"Credit\" = 0) OR (\"Credit\" > 0 AND \"Debit\" = 0)");
+            });
+            entity.Property(x => x.Debit).HasPrecision(18, 2);
+            entity.Property(x => x.Credit).HasPrecision(18, 2);
+            entity.Property(x => x.Description).HasMaxLength(300);
+            entity.HasOne(x => x.JournalEntry).WithMany(x => x.Lines).HasForeignKey(x => x.JournalEntryId)
+                .OnDelete(DeleteBehavior.Restrict);
+            entity.HasOne(x => x.Account).WithMany().HasForeignKey(x => x.AccountId)
+                .OnDelete(DeleteBehavior.Restrict);
+        });
+
+        modelBuilder.Entity<AccountMapping>(entity =>
+        {
+            entity.ToTable("AccountMappings");
+            entity.Property(x => x.Type).HasConversion<string>().HasMaxLength(30);
+            entity.Property(x => x.Key).HasMaxLength(100).IsRequired();
+            entity.HasIndex(x => new { x.Type, x.Key }).IsUnique();
+            entity.HasIndex(x => x.PaymentMethodId).IsUnique().HasFilter("\"PaymentMethodId\" IS NOT NULL");
+            entity.HasIndex(x => x.ExpenseCategoryId).IsUnique().HasFilter("\"ExpenseCategoryId\" IS NOT NULL");
+            entity.HasOne(x => x.Account).WithMany().HasForeignKey(x => x.AccountId).OnDelete(DeleteBehavior.Restrict);
+            entity.HasOne<PaymentMethod>().WithMany().HasForeignKey(x => x.PaymentMethodId).OnDelete(DeleteBehavior.Restrict);
+            entity.HasOne<ExpenseCategory>().WithMany().HasForeignKey(x => x.ExpenseCategoryId).OnDelete(DeleteBehavior.Restrict);
+            entity.HasQueryFilter(x => !x.IsDeleted);
+        });
+
+        modelBuilder.Entity<FinancialAccount>(entity =>
+        {
+            entity.ToTable("FinancialAccounts");
+            entity.Property(x => x.Code).HasMaxLength(40).IsRequired();
+            entity.Property(x => x.Name).HasMaxLength(200).IsRequired();
+            entity.Property(x => x.Type).HasConversion<string>().HasMaxLength(30);
+            entity.Property(x => x.MaskedReference).HasMaxLength(100);
+            entity.HasIndex(x => x.Code).IsUnique();
+            entity.HasOne(x => x.Account).WithMany().HasForeignKey(x => x.AccountId).OnDelete(DeleteBehavior.Restrict);
+            entity.HasQueryFilter(x => !x.IsDeleted);
+        });
+
+        modelBuilder.Entity<FinanceActivation>(entity =>
+        {
+            entity.ToTable("FinanceActivations", table => table.HasCheckConstraint(
+                "CK_FinanceActivations_Enablement",
+                "NOT \"AutomaticPostingEnabled\" OR (\"CutoverDate\" IS NOT NULL AND \"MandatoryMappingsApproved\" AND \"OpeningBalancesApproved\" AND \"ReconciliationReady\" AND \"ApprovedBy\" IS NOT NULL AND \"ApprovedOn\" IS NOT NULL)"));
+        });
+    }
+
+    private void PreventPostedJournalMutation()
+    {
+        if (ChangeTracker.Entries<JournalEntry>().Any(x => x.State is EntityState.Modified or EntityState.Deleted) ||
+            ChangeTracker.Entries<JournalLine>().Any(x => x.State is EntityState.Modified or EntityState.Deleted))
+            throw new InvalidOperationException("Posted journals and lines are immutable; create a reversal instead.");
     }
 }
