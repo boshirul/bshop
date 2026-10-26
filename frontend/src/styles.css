@@ -789,3 +789,16 @@ app-pos-checkout-page .pos-product-option { align-items: center; display: flex; 
 app-pos-checkout-page .pos-product-option img,
 app-pos-checkout-page .pos-product-placeholder { background: var(--bshop-color-bg); border-radius: .25rem; height: 1.6rem; object-fit: cover; width: 1.6rem; }
 app-pos-checkout-page .pos-product-placeholder { align-items: center; color: var(--bshop-color-text-muted); display: inline-flex; justify-content: center; }
+/* Legacy list screens retain their server-side paging while sharing the same visual language as app-pagination. */
+.pagination {
+  align-items: center !important;
+  border-top: 1px solid var(--bshop-color-border-soft);
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--bshop-space-2);
+  justify-content: flex-end !important;
+  margin-top: var(--bshop-space-4) !important;
+  padding-top: var(--bshop-space-3);
+}
+.pagination span { color: var(--bshop-color-text-muted); font-size: .85rem; }
+@media (width <= 680px) { .pagination { justify-content: space-between !important; } }

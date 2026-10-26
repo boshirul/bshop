@@ -9,8 +9,8 @@ export class AuditLogApiService {
   private readonly http = inject(HttpClient);
   private readonly base = inject(API_BASE_URL);
 
-  logs(search = '', from = '', to = '', page = 1): Observable<PagedResult<AuditLogItem>> {
-    let params = new HttpParams().set('page', page).set('pageSize', 25);
+  logs(search = '', from = '', to = '', page = 1, pageSize = 25): Observable<PagedResult<AuditLogItem>> {
+    let params = new HttpParams().set('page', page).set('pageSize', pageSize);
     if (search.trim()) params = params.set('search', search.trim());
     if (from) params = params.set('from', from);
     if (to) params = params.set('to', to);

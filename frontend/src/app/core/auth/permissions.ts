@@ -74,5 +74,6 @@ export const permissions = {
     manageUsers: 'administration.manage-users',
     manageRoles: 'administration.manage-roles',
     viewAuditLog: 'administration.view-audit-log'
-  }
+  },
+  finance: { view:'finance.view', viewReports:'finance.reports.view', manageAccounts:'finance.accounts.manage', createManualJournal:'finance.journals.create-manual', postJournal:'finance.journals.post', reverseJournal:'finance.journals.reverse', manageReconciliation:'finance.reconciliation.manage', manageTransfers:'finance.transfers.manage', closePeriods:'finance.periods.close', reopenPeriods:'finance.periods.reopen' }
 } as const;

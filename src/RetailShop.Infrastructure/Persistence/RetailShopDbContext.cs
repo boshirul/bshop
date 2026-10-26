@@ -154,6 +154,13 @@ public sealed class RetailShopDbContext(DbContextOptions<RetailShopDbContext> op
     public DbSet<AccountMapping> AccountMappings => Set<AccountMapping>();
     public DbSet<FinancialAccount> FinancialAccounts => Set<FinancialAccount>();
     public DbSet<FinanceActivation> FinanceActivations => Set<FinanceActivation>();
+    public DbSet<ManualJournalDraft> ManualJournalDrafts => Set<ManualJournalDraft>();
+    public DbSet<ManualJournalDraftLine> ManualJournalDraftLines => Set<ManualJournalDraftLine>();
+    public DbSet<FundTransfer> FundTransfers => Set<FundTransfer>();
+    public DbSet<FinancialReconciliation> FinancialReconciliations => Set<FinancialReconciliation>();
+    public DbSet<OpeningBalanceBatch> OpeningBalanceBatches => Set<OpeningBalanceBatch>();
+    public DbSet<OpeningBalanceLine> OpeningBalanceLines => Set<OpeningBalanceLine>();
+    public DbSet<FinanceActivationAudit> FinanceActivationAudits => Set<FinanceActivationAudit>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -1449,6 +1456,13 @@ public sealed class RetailShopDbContext(DbContextOptions<RetailShopDbContext> op
                 "CK_FinanceActivations_Enablement",
                 "NOT \"AutomaticPostingEnabled\" OR (\"CutoverDate\" IS NOT NULL AND \"MandatoryMappingsApproved\" AND \"OpeningBalancesApproved\" AND \"ReconciliationReady\" AND \"ApprovedBy\" IS NOT NULL AND \"ApprovedOn\" IS NOT NULL)"));
         });
+        modelBuilder.Entity<ManualJournalDraft>(entity => { entity.ToTable("ManualJournalDrafts"); entity.Property(x=>x.Description).HasMaxLength(500); entity.Property(x=>x.Reference).HasMaxLength(100); entity.Property(x=>x.Status).HasConversion<string>().HasMaxLength(20); entity.HasIndex(x=>x.JournalEntryId).IsUnique().HasFilter("\"JournalEntryId\" IS NOT NULL"); entity.HasOne<JournalEntry>().WithMany().HasForeignKey(x=>x.JournalEntryId).OnDelete(DeleteBehavior.Restrict); });
+        modelBuilder.Entity<ManualJournalDraftLine>(entity => { entity.ToTable("ManualJournalDraftLines",t=>t.HasCheckConstraint("CK_ManualJournalDraftLines_Amount","(\"Debit\" > 0 AND \"Credit\" = 0) OR (\"Credit\" > 0 AND \"Debit\" = 0)")); entity.Property(x=>x.Debit).HasPrecision(18,2); entity.Property(x=>x.Credit).HasPrecision(18,2); entity.Property(x=>x.Description).HasMaxLength(300); entity.HasOne<Account>().WithMany().HasForeignKey(x=>x.AccountId).OnDelete(DeleteBehavior.Restrict); });
+        modelBuilder.Entity<FundTransfer>(entity => { entity.ToTable("FundTransfers",t=>{t.HasCheckConstraint("CK_FundTransfers_Amount","\"Amount\" > 0 AND \"Fee\" >= 0");t.HasCheckConstraint("CK_FundTransfers_Accounts","\"SourceFinancialAccountId\" <> \"DestinationFinancialAccountId\"");}); entity.Property(x=>x.Amount).HasPrecision(18,2); entity.Property(x=>x.Fee).HasPrecision(18,2); entity.Property(x=>x.Status).HasConversion<string>().HasMaxLength(20); entity.Property(x=>x.Reference).HasMaxLength(100); entity.Property(x=>x.Description).HasMaxLength(500); entity.HasIndex(x=>x.JournalEntryId).IsUnique().HasFilter("\"JournalEntryId\" IS NOT NULL"); entity.HasOne<FinancialAccount>().WithMany().HasForeignKey(x=>x.SourceFinancialAccountId).OnDelete(DeleteBehavior.Restrict); entity.HasOne<FinancialAccount>().WithMany().HasForeignKey(x=>x.DestinationFinancialAccountId).OnDelete(DeleteBehavior.Restrict); entity.HasOne<Account>().WithMany().HasForeignKey(x=>x.FeeAccountId).OnDelete(DeleteBehavior.Restrict); entity.HasOne<JournalEntry>().WithMany().HasForeignKey(x=>x.JournalEntryId).OnDelete(DeleteBehavior.Restrict); });
+        modelBuilder.Entity<FinancialReconciliation>(entity => { entity.ToTable("FinancialReconciliations"); entity.Property(x=>x.ExternalOpeningBalance).HasPrecision(18,2);entity.Property(x=>x.ExternalClosingBalance).HasPrecision(18,2);entity.Property(x=>x.BookBalance).HasPrecision(18,2);entity.Property(x=>x.Status).HasConversion<string>().HasMaxLength(20); entity.HasIndex(x=>new{x.FinancialAccountId,x.StatementDate}).IsUnique(); entity.HasOne<FinancialAccount>().WithMany().HasForeignKey(x=>x.FinancialAccountId).OnDelete(DeleteBehavior.Restrict); });
+        modelBuilder.Entity<OpeningBalanceBatch>(entity=>{entity.ToTable("OpeningBalanceBatches");entity.Property(x=>x.Description).HasMaxLength(500);entity.Property(x=>x.Status).HasConversion<string>().HasMaxLength(20);entity.HasIndex(x=>x.JournalEntryId).IsUnique().HasFilter("\"JournalEntryId\" IS NOT NULL");entity.HasOne<JournalEntry>().WithMany().HasForeignKey(x=>x.JournalEntryId).OnDelete(DeleteBehavior.Restrict);});
+        modelBuilder.Entity<OpeningBalanceLine>(entity=>{entity.ToTable("OpeningBalanceLines",t=>t.HasCheckConstraint("CK_OpeningBalanceLines_Amount","(\"Debit\" > 0 AND \"Credit\" = 0) OR (\"Credit\" > 0 AND \"Debit\" = 0)"));entity.Property(x=>x.Debit).HasPrecision(18,2);entity.Property(x=>x.Credit).HasPrecision(18,2);entity.Property(x=>x.ReconciliationType).HasMaxLength(30);entity.HasOne<Account>().WithMany().HasForeignKey(x=>x.AccountId).OnDelete(DeleteBehavior.Restrict);});
+        modelBuilder.Entity<FinanceActivationAudit>(entity=>{entity.ToTable("FinanceActivationAudits");entity.Property(x=>x.Action).HasMaxLength(50);entity.Property(x=>x.Details).HasMaxLength(1000);});
     }
 
     private void PreventPostedJournalMutation()

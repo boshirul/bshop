@@ -78,6 +78,7 @@ app-admin-layout {
   min-width: 0;
   padding: var(--bshop-space-6);
 }
+.parent-return { margin-block-end: var(--bshop-space-3); }
 
 @media (width <= 760px) {
   .app-toolbar { padding-inline: var(--bshop-space-3); }.app-sidenav { box-shadow: var(--bshop-shadow-md); width: min(17rem, 82vw); }.sidenav-brand { height: 4.5rem; }.sidebar-collapse-button { display: none; }

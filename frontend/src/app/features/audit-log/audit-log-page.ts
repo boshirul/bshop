@@ -9,6 +9,7 @@ import { MatInputModule } from '@angular/material/input';
 import { MatTableModule } from '@angular/material/table';
 import { AuditLogApiService } from './audit-log-api.service';
 import { AuditLogItem } from './audit-log.models';
+import { PageRequest, PaginationComponent } from '../../shared/pagination/pagination.component';
 
 @Component({
   selector: 'app-audit-log-page',
@@ -19,7 +20,7 @@ import { AuditLogItem } from './audit-log.models';
     MatCardModule,
     MatFormFieldModule,
     MatInputModule,
-    MatTableModule
+    MatTableModule, PaginationComponent
   ],
   template: `
     <header class="page-header">
@@ -56,11 +57,7 @@ import { AuditLogItem } from './audit-log.models';
 
         @if (!logs().length) { <p class="empty-state">No audit entries found.</p> }
 
-        <div class="pagination">
-          <button matButton type="button" [disabled]="page() <= 1" (click)="load(page() - 1)">Previous</button>
-          <span>Page {{ page() }} of {{ totalPages() || 1 }} · {{ totalCount() }} records</span>
-          <button matButton type="button" [disabled]="page() >= totalPages()" (click)="load(page() + 1)">Next</button>
-        </div>
+        <app-pagination [page]="page()" [pageSize]="pageSize()" [totalPages]="totalPages()" [totalCount]="totalCount()" (pageChange)="changePage($event)" />
       </mat-card-content>
     </mat-card>
   `,
@@ -74,6 +71,7 @@ export class AuditLogPage implements OnInit {
   protected readonly to = new FormControl('', { nonNullable: true });
   protected readonly logs = signal<AuditLogItem[]>([]);
   protected readonly page = signal(1);
+  protected readonly pageSize = signal(25);
   protected readonly totalPages = signal(0);
   protected readonly totalCount = signal(0);
   protected readonly error = signal('');
@@ -86,7 +84,8 @@ export class AuditLogPage implements OnInit {
       this.search.value,
       this.toIso(this.from.value),
       this.toIso(this.to.value),
-      page
+      page,
+      this.pageSize()
     ).subscribe({
       next: result => {
         this.logs.set(result.items);
@@ -98,6 +97,8 @@ export class AuditLogPage implements OnInit {
       error: error => this.fail(error, 'Audit log could not be loaded.')
     });
   }
+
+  protected changePage(request: PageRequest): void { this.pageSize.set(request.pageSize); this.load(request.page); }
 
   private toIso(value: string): string {
     return value ? new Date(value).toISOString() : '';

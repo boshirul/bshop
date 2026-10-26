@@ -78,7 +78,7 @@ import { PaymentMethodItem } from './settings.models';
               <textarea matInput rows="2" formControlName="receiptFooter"></textarea>
             </mat-form-field>
             @if (canManage()) {
-              <button matButton="filled" type="submit" [disabled]="shopForm.invalid">Save shop</button>
+              <button matButton type="button" (click)="reloadSettings()">Cancel</button><button matButton="filled" type="submit" [disabled]="shopForm.invalid">Save shop</button>
             }
           </form>
         </mat-tab>
@@ -106,7 +106,7 @@ import { PaymentMethodItem } from './settings.models';
               <mat-checkbox formControlName="showQrCode">Show QR code</mat-checkbox>
             </div>
             @if (canManage()) {
-              <button matButton="filled" type="submit" [disabled]="invoiceForm.invalid">Save invoice</button>
+              <button matButton type="button" (click)="reloadSettings()">Cancel</button><button matButton="filled" type="submit" [disabled]="invoiceForm.invalid">Save invoice</button>
             }
           </form>
         </mat-tab>
@@ -122,7 +122,7 @@ import { PaymentMethodItem } from './settings.models';
             <mat-form-field appearance="outline"><mat-label>Accent color</mat-label><input matInput formControlName="accentColor" /></mat-form-field>
             <mat-form-field appearance="outline"><mat-label>Thermal margin (mm)</mat-label><input matInput type="number" min="0" max="10" formControlName="thermalMarginMm" /></mat-form-field>
             <p class="transaction-helper span-2">Terms, return policy, and tax visibility use the Invoice settings above.</p>
-            @if (canManage()) { <button matButton="filled" type="submit" [disabled]="templateForm.invalid">Save print configuration</button> }
+            @if (canManage()) { <button matButton type="button" (click)="reloadSettings()">Cancel</button><button matButton="filled" type="submit" [disabled]="templateForm.invalid">Save print configuration</button> }
           </form>
         </mat-tab>
 
@@ -140,7 +140,7 @@ import { PaymentMethodItem } from './settings.models';
               </mat-form-field>
               <mat-checkbox formControlName="isEnabled">Tax enabled</mat-checkbox>
               @if (canManage()) {
-                <button matButton="filled" type="submit" [disabled]="taxForm.invalid">Save tax</button>
+                <button matButton type="button" (click)="reloadSettings()">Cancel</button><button matButton="filled" type="submit" [disabled]="taxForm.invalid">Save tax</button>
               }
             </form>
             <form class="settings-form settings-section" [formGroup]="systemForm" (ngSubmit)="saveSystem()">
@@ -163,7 +163,7 @@ import { PaymentMethodItem } from './settings.models';
               </mat-form-field>
               <mat-checkbox formControlName="lowStockAlertsEnabled">Low-stock alerts</mat-checkbox>
               @if (canManage()) {
-                <button matButton="filled" type="submit" [disabled]="systemForm.invalid">Save system</button>
+                <button matButton type="button" (click)="reloadSettings()">Cancel</button><button matButton="filled" type="submit" [disabled]="systemForm.invalid">Save system</button>
               }
             </form>
           </div>
@@ -193,9 +193,7 @@ import { PaymentMethodItem } from './settings.models';
                 <mat-checkbox formControlName="isActive">Active</mat-checkbox>
                 <div class="checks">
                   <button matButton="filled" type="submit" [disabled]="paymentForm.invalid">Save</button>
-                  @if (editingPaymentId()) {
-                    <button matButton type="button" (click)="resetPaymentForm()">Cancel</button>
-                  }
+                  <button matButton type="button" (click)="resetPaymentForm()">Cancel</button>
                 </div>
               </form>
             }
@@ -307,7 +305,9 @@ export class SettingsPage implements OnInit {
     isActive: new FormControl(true, { nonNullable: true })
   });
 
-  ngOnInit(): void {
+  ngOnInit(): void { this.reloadSettings(); }
+
+  protected reloadSettings(): void {
     forkJoin({
       shop: this.api.getShop(),
       invoice: this.api.getInvoice(),

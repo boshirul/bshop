@@ -9,10 +9,11 @@ import { MatSelectModule } from '@angular/material/select';
 import { merge, Subscription } from 'rxjs';
 import { ManagementReportCatalogueItem, ManagementReportPreview } from './reports.models';
 import { ReportsApiService } from './reports-api.service';
+import { PageRequest, PaginationComponent } from '../../shared/pagination/pagination.component';
 
 @Component({
   selector: 'app-reports-page',
-  imports: [ReactiveFormsModule, MatButtonModule, MatCardModule, MatFormFieldModule, MatInputModule, MatSelectModule],
+  imports: [ReactiveFormsModule, MatButtonModule, MatCardModule, MatFormFieldModule, MatInputModule, MatSelectModule, PaginationComponent],
   template: `
     <header class="page-header"><div><p class="eyebrow">MANAGEMENT REPORTS</p><h1>Reports</h1><p>Authoritative sales, profit, inventory, and customer-balance reports.</p></div></header>
     <mat-card appearance="outlined" class="report-controls"><mat-card-content>
@@ -27,7 +28,7 @@ import { ReportsApiService } from './reports-api.service';
     @if (error()) { <p class="error-message">{{ error() }}</p> }
     @if (preview(); as report) { <mat-card appearance="outlined" class="report-result"><mat-card-content><div class="report-result__heading"><div><h2>{{ report.title }}</h2><p>{{ report.periodLabel }}</p></div></div>
       <div class="summary-grid">@for (item of report.summary; track item.label) { <div class="summary-box"><span>{{ item.label }}</span><strong>{{ item.value }}</strong></div> }</div>
-      @if (report.rows.length) { <div class="table-wrap report-table-wrap" tabindex="0" aria-label="Report results. Scroll horizontally to view all columns."><table class="report-table"><colgroup>@for (column of report.columns; track column.key) { <col [class.report-table__numeric-column]="column.isNumeric" [class.report-table__items-column]="column.key === 'items' || column.key === 'description'" /> }</colgroup><thead><tr>@for (column of report.columns; track column.key) { <th [class.money]="column.isNumeric">{{ column.heading }}</th> }</tr></thead><tbody>@for (row of report.rows; track $index) { <tr>@for (column of report.columns; track column.key) { <td [class.money]="column.isNumeric" [class.report-table__long-text]="column.key === 'items' || column.key === 'description' || column.key === 'customer' || column.key === 'product' || column.key === 'payee'">{{ row.values[column.key]?.display }}</td> }</tr>}</tbody></table></div> } @else { <p class="empty-state">No matching records were found for this report.</p> }
+      @if (report.rows.length) { <div class="table-wrap report-table-wrap" tabindex="0" aria-label="Report results. Scroll horizontally to view all columns."><table class="report-table"><colgroup>@for (column of report.columns; track column.key) { <col [class.report-table__numeric-column]="column.isNumeric" [class.report-table__items-column]="column.key === 'items' || column.key === 'description'" /> }</colgroup><thead><tr>@for (column of report.columns; track column.key) { <th [class.money]="column.isNumeric">{{ column.heading }}</th> }</tr></thead><tbody>@for (row of visibleRows(); track $index) { <tr>@for (column of report.columns; track column.key) { <td [class.money]="column.isNumeric" [class.report-table__long-text]="column.key === 'items' || column.key === 'description' || column.key === 'customer' || column.key === 'product' || column.key === 'payee'">{{ row.values[column.key]?.display }}</td> }</tr>}</tbody></table></div><app-pagination [page]="page()" [pageSize]="pageSize()" [totalCount]="report.rows.length" (pageChange)="changePage($event)" /> } @else { <p class="empty-state">No matching records were found for this report.</p> }
     </mat-card-content></mat-card> }
   `,
   styles: `@use './reports.scss';`
@@ -43,6 +44,8 @@ export class ReportsPage implements OnInit, OnDestroy {
   protected readonly to = new FormControl(this.today(), { nonNullable: true });
   protected readonly search = new FormControl('', { nonNullable: true });
   protected readonly preview = signal<ManagementReportPreview | null>(null);
+  protected readonly page = signal(1); protected readonly pageSize = signal(25);
+  protected readonly visibleRows = computed(() => { const rows=this.preview()?.rows??[]; const start=(this.page()-1)*this.pageSize(); return rows.slice(start,start+this.pageSize()); });
   protected readonly error = signal(''); protected readonly loading = signal(false); protected readonly exporting = signal(false);
   private readonly selectedKind = signal(this.kind.value);
   private readonly filterRevision = signal(0);
@@ -71,10 +74,12 @@ export class ReportsPage implements OnInit, OnDestroy {
     const requestId = ++this.requestId; const key = this.currentKey(); const kind = this.selectedKind();
     this.loading.set(true);
     this.previewRequest = this.api.management(kind, request).subscribe({
-      next: value => { if (requestId !== this.requestId) return; this.preview.set(value); this.previewKey.set(key); this.loading.set(false); },
+      next: value => { if (requestId !== this.requestId) return; this.page.set(1); this.preview.set(value); this.previewKey.set(key); this.loading.set(false); },
       error: error => { if (requestId !== this.requestId) return; this.loading.set(false); this.preview.set(null); this.previewKey.set(null); this.fail(error, 'Report could not be loaded.'); }
     });
   }
+
+  protected changePage(request: PageRequest): void { this.page.set(request.page); this.pageSize.set(request.pageSize); }
 
   protected download(format: 'pdf' | 'xlsx'): void {
     const request = this.parameters();

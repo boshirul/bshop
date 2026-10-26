@@ -24,6 +24,7 @@ export interface CreateUserRequest {
 
 export interface UpdateUserRequest {
   fullName: string;
+  email: string;
   phoneNumber: string | null;
   isActive: boolean;
   roles: string[];

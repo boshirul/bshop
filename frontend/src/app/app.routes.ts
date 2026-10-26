@@ -149,6 +149,11 @@ export const routes: Routes = [
           )
       },
       {
+        path: 'finance',
+        canMatch: [permissionGuard(permissions.finance.view)],
+        loadChildren: () => import('./features/finance/finance.routes').then(module => module.FINANCE_ROUTES)
+      },
+      {
         path: 'settings',
         canMatch: [permissionGuard(permissions.settings.view)],
         loadChildren: () =>

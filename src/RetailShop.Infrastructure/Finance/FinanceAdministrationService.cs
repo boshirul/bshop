@@ -71,8 +71,28 @@ internal sealed class FinanceAdministrationService(RetailShopDbContext dbContext
         if (mapping.ExpenseCategoryId is Guid categoryId &&
             !await dbContext.ExpenseCategories.AnyAsync(x => x.Id == categoryId && x.IsActive, ct))
             return OperationResult<AccountMapping>.Failure("Expense category was not found or is inactive.");
-        if (await dbContext.AccountMappings.AnyAsync(x => x.Type == mapping.Type && x.Key == mapping.Key, ct))
-            return OperationResult<AccountMapping>.Failure("This account mapping already exists.");
+        var existing = await dbContext.AccountMappings.IgnoreQueryFilters()
+            .SingleOrDefaultAsync(x => x.Type == mapping.Type && x.Key == mapping.Key, ct);
+        if (existing is not null)
+        {
+            var canRepairPaymentMapping = mapping.Type == AccountMappingType.PaymentMethod &&
+                existing.PaymentMethodId != mapping.PaymentMethodId &&
+                existing.PaymentMethodId is Guid existingPaymentId &&
+                !await dbContext.PaymentMethods.IgnoreQueryFilters()
+                    .AnyAsync(x => x.Id == existingPaymentId && !x.IsDeleted && x.IsActive, ct);
+            var canRepairExpenseMapping = mapping.Type == AccountMappingType.ExpenseCategory &&
+                existing.ExpenseCategoryId != mapping.ExpenseCategoryId &&
+                existing.ExpenseCategoryId is Guid existingCategoryId &&
+                !await dbContext.ExpenseCategories.IgnoreQueryFilters()
+                    .AnyAsync(x => x.Id == existingCategoryId && !x.IsDeleted && x.IsActive, ct);
+
+            if (!canRepairPaymentMapping && !canRepairExpenseMapping)
+                return OperationResult<AccountMapping>.Failure("This account mapping already exists.");
+
+            existing.Reconfigure(mapping.AccountId, mapping.PaymentMethodId, mapping.ExpenseCategoryId);
+            await dbContext.SaveChangesAsync(ct);
+            return OperationResult<AccountMapping>.Success(existing);
+        }
         dbContext.AccountMappings.Add(mapping);
         await dbContext.SaveChangesAsync(ct);
         return OperationResult<AccountMapping>.Success(mapping);

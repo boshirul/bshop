@@ -1,0 +1,44 @@
+{
+  "baseUrl": "http://localhost/BShopApi/api/online-store",
+  "startedUtc": "2026-10-21T19:18:15.844Z",
+  "endedUtc": "2026-10-21T19:18:46.039Z",
+  "virtualUsers": 5,
+  "configuredDurationSeconds": 30,
+  "requestRateCap": 2,
+  "requests": 60,
+  "successful": 60,
+  "successRate": 1,
+  "requestsPerSecond": 1.987083954297069,
+  "latencyMs": {
+    "average": 3.4594050000000673,
+    "p50": 3.3011999999998807,
+    "p95": 4.854400000000169,
+    "p99": 5.601400000000005
+  },
+  "statusCounts": {
+    "200": 60
+  },
+  "stoppedOnServerError": false,
+  "journeys": {
+    "browse": {
+      "requests": 36,
+      "successful": 36,
+      "p95Ms": 5.3799999999999955
+    },
+    "search": {
+      "requests": 12,
+      "successful": 12,
+      "p95Ms": 4.879899999999907
+    },
+    "detail": {
+      "requests": 9,
+      "successful": 9,
+      "p95Ms": 4.854400000000169
+    },
+    "checkout-read": {
+      "requests": 3,
+      "successful": 3,
+      "p95Ms": 4.839700000000448
+    }
+  }
+}

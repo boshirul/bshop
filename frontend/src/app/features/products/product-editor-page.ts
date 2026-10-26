@@ -130,7 +130,15 @@ import {
 
             <mat-form-field appearance="outline">
               <mat-label>Warranty months</mat-label>
-              <input matInput type="number" min="1" formControlName="warrantyMonths" />
+              <input
+                matInput
+                type="number"
+                [min]="form.controls.isWarrantyAvailable.value ? 1 : 0"
+                formControlName="warrantyMonths"
+              />
+              @if (form.controls.warrantyMonths.hasError('min')) {
+                <mat-error>Warranty months must be greater than zero when warranty is enabled.</mat-error>
+              }
             </mat-form-field>
 
             <mat-form-field appearance="outline" class="span-2">

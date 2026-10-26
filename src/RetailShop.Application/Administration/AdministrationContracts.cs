@@ -20,6 +20,7 @@ public sealed record CreateUserRequest(
 
 public sealed record UpdateUserRequest(
     [param: Required] string FullName,
+    [param: Required, EmailAddress] string Email,
     string? PhoneNumber,
     bool IsActive,
     IReadOnlyCollection<string> Roles);

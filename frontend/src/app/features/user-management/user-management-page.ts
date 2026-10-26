@@ -46,11 +46,16 @@ import { PermissionSummary, RoleSummary, UserSummary } from './user-management.m
         <mat-card-content>
           <h2>Users</h2>
           @if (editingUser()) {
-            <form class="editor" (ngSubmit)="saveUser()">
+            <form class="editor" (ngSubmit)="$event.preventDefault()">
               <mat-form-field appearance="outline"><mat-label>Full name</mat-label><input matInput [formControl]="fullName" /></mat-form-field>
+              <mat-form-field appearance="outline"><mat-label>Email</mat-label><input matInput type="email" [formControl]="email" /></mat-form-field>
               @if (!editingUserId()) {
-                <mat-form-field appearance="outline"><mat-label>Email</mat-label><input matInput type="email" [formControl]="email" /></mat-form-field>
-                <mat-form-field appearance="outline"><mat-label>Password</mat-label><input matInput type="password" [formControl]="password" /></mat-form-field>
+                <mat-form-field appearance="outline">
+                  <mat-label>Password</mat-label>
+                  <input matInput type="password" [formControl]="password" />
+                  <mat-hint>At least 8 characters with uppercase, lowercase, number, and symbol.</mat-hint>
+                  @if (password.touched && password.invalid) { <mat-error>Enter a password that meets the stated policy.</mat-error> }
+                </mat-form-field>
               }
               <mat-form-field appearance="outline"><mat-label>Phone</mat-label><input matInput [formControl]="phone" /></mat-form-field>
               <mat-form-field appearance="outline">
@@ -63,7 +68,7 @@ import { PermissionSummary, RoleSummary, UserSummary } from './user-management.m
               </mat-form-field>
               <mat-checkbox [formControl]="isActive">Active</mat-checkbox>
               <div class="actions">
-                <button matButton="filled" type="submit" [disabled]="fullName.invalid || (!editingUserId() && (email.invalid || password.invalid))">Save user</button>
+                <button matButton="filled" type="button" (click)="saveUser()" [disabled]="saving() || fullName.invalid || email.invalid || (!editingUserId() && password.invalid)">{{ saving() ? 'Saving…' : 'Save user' }}</button>
                 <button matButton type="button" (click)="cancelUser()">Cancel</button>
               </div>
             </form>
@@ -183,13 +188,14 @@ export class UserManagementPage implements OnInit {
     const id = this.editingUserId();
     const request = {
       fullName: this.fullName.value,
+      email: this.email.value,
       phoneNumber: this.phone.value || null,
       isActive: this.isActive.value,
       roles: this.selectedRoles.value
     };
     const action = id
       ? this.api.updateUser(id, request)
-      : this.api.createUser({ ...request, email: this.email.value, password: this.password.value });
+      : this.api.createUser({ ...request, password: this.password.value });
     action.subscribe({ next: () => { this.saving.set(false); this.message.set('User saved.'); this.notifications.success(this.message()); this.cancelUser(); this.load(); }, error: error => { this.saving.set(false); this.fail(error, 'User could not be saved.', true); } });
   }
 

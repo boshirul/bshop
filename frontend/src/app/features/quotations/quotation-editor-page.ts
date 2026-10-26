@@ -62,7 +62,7 @@ type LineForm = FormGroup<{
         </mat-card-content>
       </mat-card>
       <div class="save-bar transaction-total-bar transaction-summary"><div><span>Quotation total</span><strong>{{total()|currency:'BDT':'symbol-narrow'}}</strong></div>
-        <button matButton="filled" class="transaction-primary" type="submit" [disabled]="form.invalid||saving()">{{ saving() ? 'Saving quotation…' : 'Save quotation' }}</button></div>
+        <a matButton routerLink="/quotations">Cancel</a><button matButton="filled" class="transaction-primary" type="submit" [disabled]="form.invalid||saving()">{{ saving() ? 'Saving quotation…' : 'Save quotation' }}</button></div>
     </form>
   `,
   styles: `

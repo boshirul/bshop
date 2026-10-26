@@ -1,11 +1,12 @@
 import { HttpClient } from '@angular/common/http';
-import { Component, effect, HostListener, inject, OnDestroy, OnInit, signal } from '@angular/core';
+import { Component, computed, effect, HostListener, inject, OnDestroy, OnInit, signal } from '@angular/core';
 import { MatButtonModule } from '@angular/material/button';
 import { MatListModule } from '@angular/material/list';
 import { MatSidenavModule } from '@angular/material/sidenav';
 import { MatToolbarModule } from '@angular/material/toolbar';
 import { MatMenuModule } from '@angular/material/menu';
-import { Router, RouterLink, RouterLinkActive, RouterOutlet } from '@angular/router';
+import { NavigationEnd, Router, RouterLink, RouterLinkActive, RouterOutlet } from '@angular/router';
+import { filter, Subscription } from 'rxjs';
 import { AuthService } from '../core/auth/auth.service';
 import { permissions } from '../core/auth/permissions';
 import { API_BASE_URL } from '../core/http/api-base-url.token';
@@ -40,9 +41,13 @@ export class AdminLayout implements OnInit, OnDestroy {
   protected readonly sidebarCollapsed = signal(false);
   protected readonly isMobile = signal(window.innerWidth <= 760);
   protected readonly mobileDrawerOpen = signal(false);
+  private readonly currentUrl = signal(this.router.url.split('?')[0]);
+  private readonly routeSubscription: Subscription;
   private avatarObjectUrl: string | null = null;
 
   constructor() {
+    this.routeSubscription = this.router.events.pipe(filter(event => event instanceof NavigationEnd))
+      .subscribe(event => this.currentUrl.set(event.urlAfterRedirects.split('?')[0]));
     effect(() => {
       this.auth.avatarVersion();
       if (this.auth.currentUser()?.avatarUrl) this.loadAvatar();
@@ -89,6 +94,7 @@ export class AdminLayout implements OnInit, OnDestroy {
     { label: 'Warranty', route: '/warranty', icon: '◇' },
     { label: 'Online Orders', route: '/online-orders', icon: '⌘' },
     { label: 'Reports', route: '/reports', icon: '▥' },
+    { label: 'Finance & Accounting', route: '/finance', icon: '৳', permission: permissions.finance.view },
     {
       label: 'Data Exchange',
       route: '/data-exchange',
@@ -120,12 +126,18 @@ export class AdminLayout implements OnInit, OnDestroy {
       permission: permissions.administration.viewAuditLog
     }
   ];
+  protected readonly parentNavigation = computed(() => {
+    const url = this.currentUrl();
+    const item = this.navigation.find(candidate => url === candidate.route || url.startsWith(`${candidate.route}/`));
+    return item && url !== item.route ? item : null;
+  });
 
   ngOnInit(): void {
     if (this.auth.currentUser()?.avatarUrl) this.loadAvatar();
   }
 
   ngOnDestroy(): void {
+    this.routeSubscription.unsubscribe();
     if (this.avatarObjectUrl) URL.revokeObjectURL(this.avatarObjectUrl);
   }
 

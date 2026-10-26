@@ -1,6 +1,7 @@
 using Microsoft.EntityFrameworkCore;
 using RetailShop.Application.Finance;
 using RetailShop.Domain.Finance;
+using RetailShop.Domain.Settings;
 using RetailShop.Infrastructure.Finance;
 using RetailShop.Infrastructure.Persistence;
 
@@ -138,6 +139,28 @@ public sealed class FinanceFoundationTests
     }
 
     [Fact]
+    public async Task Mapping_reassigns_a_stale_payment_code_to_the_current_active_method()
+    {
+        await using var db = Context();
+        var cashAccount = Posting("1110", AccountType.Asset);
+        var oldCash = new PaymentMethod("Old Cash", "CASH", "Cash") { IsDeleted = true, IsActive = false };
+        var currentCash = new PaymentMethod("Cash", "CASH", "Cash");
+        var existing = new AccountMapping(AccountMappingType.PaymentMethod, "payment:cash",
+            cashAccount.Id, paymentMethodId: oldCash.Id);
+        db.AddRange(cashAccount, oldCash, currentCash, existing);
+        await db.SaveChangesAsync();
+
+        var result = await new FinanceAdministrationService(db).SaveMappingAsync(
+            new AccountMapping(AccountMappingType.PaymentMethod, "payment:cash",
+                cashAccount.Id, paymentMethodId: currentCash.Id));
+
+        Assert.True(result.Succeeded, string.Join("; ", result.Errors));
+        Assert.Equal(existing.Id, result.Value!.Id);
+        Assert.Equal(currentCash.Id, result.Value.PaymentMethodId);
+        Assert.Single(await db.AccountMappings.IgnoreQueryFilters().ToArrayAsync());
+    }
+
+    [Fact]
     public async Task Initialisation_is_idempotent_and_keeps_automatic_posting_disabled()
     {
         await using var db = Context();
@@ -150,6 +173,35 @@ public sealed class FinanceFoundationTests
         Assert.Equal(mappingCount, await db.AccountMappings.CountAsync());
         Assert.False((await db.FinanceActivations.SingleAsync()).AutomaticPostingEnabled);
         Assert.Empty(await db.JournalEntries.ToArrayAsync());
+    }
+
+    [Fact]
+    public async Task Posting_opening_balance_preserves_unresolved_reconciliation_status()
+    {
+        await using var db = Context();
+        await new FinanceInitializer(db).InitialiseAsync();
+        db.FiscalPeriods.Add(Period());
+        await db.SaveChangesAsync();
+        var inventory = await db.Accounts.SingleAsync(x => x.Code == "1300");
+        var openingEquity = await db.Accounts.SingleAsync(x => x.Code == "3300");
+        var userId = Guid.NewGuid();
+        var batch = new OpeningBalanceBatch(Date(), "Approved opening", userId);
+        batch.ReplaceLines([
+            new OpeningBalanceLine(inventory.Id, 100m, 0m, null, null),
+            new OpeningBalanceLine(openingEquity.Id, 0m, 100m, null, null)
+        ]);
+        batch.Approve(userId);
+        db.OpeningBalanceBatches.Add(batch);
+        await db.SaveChangesAsync();
+
+        var service = new FinanceSetupService(db, Service(db));
+        var result = await service.PostOpeningBatchAsync(batch.Id, userId);
+
+        Assert.True(result.Succeeded, string.Join("; ", result.Errors));
+        var activation = await db.FinanceActivations.SingleAsync();
+        Assert.True(activation.OpeningBalancesApproved);
+        Assert.False(activation.ReconciliationReady);
+        Assert.False(activation.AutomaticPostingEnabled);
     }
 
     [Fact]

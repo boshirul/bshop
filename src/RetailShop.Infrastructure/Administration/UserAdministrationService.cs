@@ -107,6 +107,14 @@ internal sealed class UserAdministrationService(
             return OperationResult<UserSummary>.Failure("User not found.");
         }
 
+        var email = request.Email.Trim();
+        var userWithEmail = await userManager.FindByEmailAsync(email);
+        if (userWithEmail is not null && userWithEmail.Id != user.Id)
+        {
+            return OperationResult<UserSummary>.Failure(
+                "A user with this email already exists.");
+        }
+
         var rolesResult = await ValidateRolesAsync(request.Roles, cancellationToken);
         if (!rolesResult.Succeeded)
         {
@@ -114,6 +122,8 @@ internal sealed class UserAdministrationService(
         }
 
         user.FullName = request.FullName.Trim();
+        user.Email = email;
+        user.UserName = email;
         user.PhoneNumber = request.PhoneNumber?.Trim();
         user.IsActive = request.IsActive;
         user.LastModifiedBy = performedBy;

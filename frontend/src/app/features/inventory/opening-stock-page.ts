@@ -93,6 +93,7 @@ type OpeningLineForm = FormGroup<{
           </div>
 
           <div class="form-actions transaction-total-bar">
+            <a matButton routerLink="/inventory">Cancel</a>
             <button matButton="filled" class="transaction-primary" type="submit" [disabled]="form.invalid || saving()">
               Record opening stock
             </button>

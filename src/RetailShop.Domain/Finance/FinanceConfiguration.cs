@@ -19,6 +19,14 @@ public sealed class AccountMapping : AuditableEntity
     public Guid? PaymentMethodId { get; private set; }
     public Guid? ExpenseCategoryId { get; private set; }
     public bool IsActive { get; private set; } = true;
+
+    public void Reconfigure(Guid accountId, Guid? paymentMethodId = null, Guid? expenseCategoryId = null)
+    {
+        AccountId = accountId;
+        PaymentMethodId = paymentMethodId;
+        ExpenseCategoryId = expenseCategoryId;
+        IsActive = true;
+    }
 }
 
 public sealed class FinancialAccount : AuditableEntity
@@ -52,4 +60,6 @@ public sealed class FinanceActivation : AuditableEntity
     public bool ReconciliationReady { get; private set; }
     public Guid? ApprovedBy { get; private set; }
     public DateTimeOffset? ApprovedOn { get; private set; }
+    public void Activate(DateOnly cutover, Guid by) { if(!MandatoryMappingsApproved||!OpeningBalancesApproved||!ReconciliationReady)throw new InvalidOperationException("Finance readiness prerequisites are incomplete.");if(AutomaticPostingEnabled)return;CutoverDate=cutover;ApprovedBy=by;ApprovedOn=DateTimeOffset.UtcNow;AutomaticPostingEnabled=true; }
+    public void RecordReadiness(bool mappings,bool opening,bool reconciliation) { if(AutomaticPostingEnabled)throw new InvalidOperationException("Active Finance readiness cannot be reset.");MandatoryMappingsApproved=mappings;OpeningBalancesApproved=opening;ReconciliationReady=reconciliation; }
 }

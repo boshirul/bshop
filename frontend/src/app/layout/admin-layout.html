@@ -33,6 +33,9 @@
 
   <mat-sidenav-content>
     <main class="page-content">
+      @if (parentNavigation(); as parent) {
+        <a class="parent-return" matButton [routerLink]="parent.route" aria-label="Return to parent page">← Back to {{ parent.label }}</a>
+      }
       <router-outlet />
     </main>
   </mat-sidenav-content>

@@ -173,6 +173,9 @@ public static class DependencyInjection
         services.AddScoped<IFinanceAdministrationService, FinanceAdministrationService>();
         services.AddScoped<IFinanceInitializer, FinanceInitializer>();
         services.AddScoped<IAutomaticAccountingService, AutomaticAccountingService>();
+        services.AddScoped<IFinanceOperationsService, FinanceOperationsService>();
+        services.AddScoped<IFinanceReportingService, FinanceReportingService>();
+        services.AddScoped<IFinanceSetupService, FinanceSetupService>();
 
         return services;
     }

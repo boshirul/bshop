@@ -71,6 +71,16 @@ internal sealed class FinanceInitializer(RetailShopDbContext dbContext) : IFinan
 
         await EnsureFinancialAccountAsync("CASH", "Cash in Hand", FinancialAccountType.Cash, accounts["1110"].Id, ct);
         await EnsureFinancialAccountAsync("BKASH", "bKash", FinancialAccountType.MobileWallet, accounts["1120"].Id, ct);
+        await EnsureFinancialAccountAsync("CARD", "Card Settlement Clearing", FinancialAccountType.CardClearing, accounts["1140"].Id, ct);
+        await EnsurePaymentMappingAsync("CASH", accounts["1110"].Id, ct);
+        await EnsurePaymentMappingAsync("BKASH", accounts["1120"].Id, ct);
+        await EnsurePaymentMappingAsync("CARD", accounts["1140"].Id, ct);
+        var operatingExpense = accounts["6100"].Id;
+        var categories = await dbContext.ExpenseCategories.Where(x => x.IsActive).ToArrayAsync(ct);
+        foreach (var category in categories)
+            if (!await dbContext.AccountMappings.IgnoreQueryFilters().AnyAsync(x => x.ExpenseCategoryId == category.Id, ct))
+                dbContext.AccountMappings.Add(new AccountMapping(AccountMappingType.ExpenseCategory,
+                    $"expense:{category.Code.ToLowerInvariant()}", operatingExpense, expenseCategoryId: category.Id));
         await dbContext.SaveChangesAsync(ct);
         if (transaction is not null) await transaction.CommitAsync(ct);
     }
@@ -80,5 +90,27 @@ internal sealed class FinanceInitializer(RetailShopDbContext dbContext) : IFinan
     {
         if (!await dbContext.FinancialAccounts.IgnoreQueryFilters().AnyAsync(x => x.Code == code, ct))
             dbContext.FinancialAccounts.Add(new FinancialAccount(code, name, type, accountId));
+    }
+
+    private async Task EnsurePaymentMappingAsync(string code, Guid accountId, CancellationToken ct)
+    {
+        var method = await dbContext.PaymentMethods.SingleOrDefaultAsync(x => x.Code == code && x.IsActive, ct);
+        if (method is null || await dbContext.AccountMappings.IgnoreQueryFilters().AnyAsync(x => x.PaymentMethodId == method.Id, ct))
+            return;
+
+        var key = $"payment:{code.ToLowerInvariant()}";
+        var existing = await dbContext.AccountMappings.IgnoreQueryFilters()
+            .SingleOrDefaultAsync(x => x.Type == AccountMappingType.PaymentMethod && x.Key == key, ct);
+        if (existing is null)
+            dbContext.AccountMappings.Add(new AccountMapping(AccountMappingType.PaymentMethod,
+                key, accountId, paymentMethodId: method.Id));
+        else
+        {
+            var targetIsUsable = existing.PaymentMethodId is Guid existingId &&
+                await dbContext.PaymentMethods.IgnoreQueryFilters()
+                    .AnyAsync(x => x.Id == existingId && !x.IsDeleted && x.IsActive, ct);
+            if (!targetIsUsable)
+                existing.Reconfigure(accountId, method.Id);
+        }
     }
 }

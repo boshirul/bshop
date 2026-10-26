@@ -79,9 +79,7 @@ import { NamedMasterDataItem } from './product.models';
                 <button matButton="filled" type="submit" [disabled]="form.invalid || saving()">
                   {{ saving() ? 'Saving…' : 'Save' }}
                 </button>
-                @if (editingId()) {
-                  <button matButton type="button" (click)="cancelEdit()">Cancel</button>
-                }
+                <button matButton type="button" (click)="cancelEdit()">Cancel</button>
               </div>
             </form>
           </mat-card-content>
